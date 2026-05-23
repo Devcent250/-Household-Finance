@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Users } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { FeatureShell, WorkspaceCard } from './dashboard-ui';
 
 interface UsersPanelProps {
   userId: string;
@@ -27,12 +28,13 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
   }, [userId]);
 
   return (
-    <Card className="border-border">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-xl">Users</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-3">
+    <FeatureShell
+      title="Users"
+      description="Manage household users and review the current workspace owner."
+      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Users className="h-4 w-4" /> User access</span>}
+    >
+      <WorkspaceCard title="Workspace Members" description="Current users connected to this household finance workspace.">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-background/70 px-4 py-4 shadow-sm">
           <div>
             <div className="font-medium text-foreground">{profile?.full_name || 'Current User'}</div>
             <div className="text-sm text-muted-foreground">{profile?.email || localStorage.getItem('userEmail')}</div>
@@ -41,7 +43,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
             Owner
           </Badge>
         </div>
-      </CardContent>
-    </Card>
+      </WorkspaceCard>
+    </FeatureShell>
   );
 }

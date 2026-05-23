@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import DashboardOverview from '@/components/dashboard/overview';
@@ -20,10 +20,33 @@ import Navigation from '@/components/navigation';
 import Sidebar from '@/components/sidebar';
 import { CurrencyProvider } from '@/components/currency-provider';
 
+const dashboardTabs = new Set([
+  'overview',
+  'expenses',
+  'income',
+  'budgets',
+  'goals',
+  'analytics',
+  'categories',
+  'reports',
+  'alerts',
+  'settings',
+  'users',
+  'roles',
+]);
+
+const tabToPath = (tab: string) => (tab === 'overview' ? '/dashboard' : `/dashboard/${tab}`);
+
+const getTabFromPath = (pathname: string) => {
+  const segment = pathname.split('/').filter(Boolean)[1];
+  return segment && dashboardTabs.has(segment) ? segment : 'overview';
+};
+
 export default function Dashboard() {
   const router = useRouter();
+  const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() => getTabFromPath(pathname));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -35,6 +58,15 @@ export default function Dashboard() {
     }
     setUserId(storedUserId);
   }, [router]);
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(pathname));
+  }, [pathname]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    router.push(tabToPath(tab));
+  };
 
   if (!userId) {
     return (
@@ -49,7 +81,7 @@ export default function Dashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
-        return <DashboardOverview userId={userId} />;
+        return <DashboardOverview userId={userId} onNavigate={handleTabChange} />;
       case 'expenses':
         return <ExpenseTracker userId={userId} />;
       case 'income':
@@ -73,18 +105,18 @@ export default function Dashboard() {
       case 'roles':
         return <RolesPanel />;
       default:
-        return <DashboardOverview userId={userId} />;
+        return <DashboardOverview userId={userId} onNavigate={handleTabChange} />;
     }
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-background flex flex-col">
-      <Navigation onTabChange={setActiveTab} />
+    <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,color-mix(in_oklch,var(--primary)_10%,transparent),transparent_34%),var(--background)] flex flex-col">
+      <Navigation onTabChange={handleTabChange} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
@@ -106,7 +138,7 @@ export default function Dashboard() {
 
           {/* Page Content */}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
               <CurrencyProvider userId={userId}>
                 <div className="space-y-6">
                   {renderContent()}

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart3 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import type { Category, Expense } from '@/lib/types';
 import { useCurrency } from '@/components/currency-provider';
+import { EmptyState, FeatureShell, MetricStrip, WorkspaceCard } from './dashboard-ui';
 
 interface AnalyticsProps {
   userId: string;
@@ -90,18 +91,15 @@ export default function Analytics({ userId }: AnalyticsProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <FeatureShell
+      title="Analytics"
+      description="Visualize spending distribution, month-to-month trends, and summary signals for household expenses."
+      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><BarChart3 className="h-4 w-4" /> Analytics workspace</span>}
+    >
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Expenses by Category */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Expenses by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <WorkspaceCard title="Expenses by Category" description="Category share based on recorded expense transactions.">
             {expensesByCategory.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                No expense data available
-              </div>
+              <EmptyState title="No expense data available" description="Record expenses to populate category analytics." />
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -123,15 +121,9 @@ export default function Analytics({ userId }: AnalyticsProps) {
                 </PieChart>
               </ResponsiveContainer>
             )}
-          </CardContent>
-        </Card>
+        </WorkspaceCard>
 
-        {/* Monthly Trend */}
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Monthly Spending Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <WorkspaceCard title="Monthly Spending Trend" description="Six-month expense pattern for recurring review.">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={monthlyTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(163, 25%, 85%)" />
@@ -150,38 +142,16 @@ export default function Analytics({ userId }: AnalyticsProps) {
                 />
               </LineChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        </WorkspaceCard>
       </div>
 
-      {/* Spending Summary */}
-      <Card className="border-border">
-        <CardHeader>
-          <CardTitle>Spending Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <WorkspaceCard title="Spending Summary" description="Quick totals derived from the current analytics data.">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground">Total This Month</div>
-              <div className="text-2xl font-bold text-foreground mt-2">
-                {formatCurrency(expensesByCategory.reduce((sum, cat) => sum + cat.value, 0))}
-              </div>
-            </div>
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground">Average Daily</div>
-              <div className="text-2xl font-bold text-foreground mt-2">
-                {formatCurrency(expensesByCategory.reduce((sum, cat) => sum + cat.value, 0) / 30)}
-              </div>
-            </div>
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground">Categories Tracked</div>
-              <div className="text-2xl font-bold text-foreground mt-2">
-                {expensesByCategory.length}
-              </div>
-            </div>
+            <MetricStrip label="Total This Month" value={formatCurrency(expensesByCategory.reduce((sum, cat) => sum + cat.value, 0))} />
+            <MetricStrip label="Average Daily" value={formatCurrency(expensesByCategory.reduce((sum, cat) => sum + cat.value, 0) / 30)} />
+            <MetricStrip label="Categories Tracked" value={expensesByCategory.length} tone="text-foreground" />
           </div>
-        </CardContent>
-      </Card>
-    </div>
+      </WorkspaceCard>
+    </FeatureShell>
   );
 }

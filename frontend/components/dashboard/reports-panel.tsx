@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, Printer } from 'lucide-react';
+import { FileSpreadsheet, Printer, ReceiptText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import type { Budget, Category, Expense, FinancialGoal, Income } from '@/lib/types';
+import { FeatureShell, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 
 interface ReportsPanelProps {
   userId: string;
@@ -44,6 +44,9 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reportSearch, setReportSearch] = useState('');
+  const [reportPage, setReportPage] = useState(1);
+  const [reportRowsPerPage, setReportRowsPerPage] = useState(10);
 
   useEffect(() => {
     const headers = { 'x-user-id': userId };
@@ -76,6 +79,15 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
       .catch((error) => console.error('Error fetching reports:', error))
       .finally(() => setLoading(false));
   }, [userId]);
+
+  useEffect(() => {
+    setReportPage(1);
+    setReportSearch('');
+  }, [reportType]);
+
+  useEffect(() => {
+    setReportPage(1);
+  }, [reportSearch, reportRowsPerPage]);
 
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category.name])),
@@ -185,6 +197,69 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
     window.print();
   };
 
+  const reportHeader = exportRows[0] || [];
+  const filteredReportRows = useMemo(() => {
+    const query = reportSearch.trim().toLowerCase();
+    const rows = exportRows.slice(1);
+
+    if (!query) return rows;
+
+    return rows.filter((row) => row.join(' ').toLowerCase().includes(query));
+  }, [exportRows, reportSearch]);
+  const reportTotalPages = Math.max(1, Math.ceil(filteredReportRows.length / reportRowsPerPage));
+  const safeReportPage = Math.min(reportPage, reportTotalPages);
+  const paginatedReportRows = filteredReportRows.slice(
+    (safeReportPage - 1) * reportRowsPerPage,
+    safeReportPage * reportRowsPerPage
+  );
+
+  const renderCellValue = (value: ReportCell) => (typeof value === 'number' ? formatCurrency(value) : value);
+
+  const renderCurrentReportTable = () => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {reportHeader.map((header) => (
+            <TableHead key={header} className={String(header).toLowerCase().includes('amount') || String(header).toLowerCase().includes('total') || String(header).toLowerCase().includes('limit') || String(header).toLowerCase().includes('spent') || String(header).toLowerCase().includes('current') || String(header).toLowerCase().includes('target') || String(header).toLowerCase().includes('remaining') ? 'text-right' : undefined}>
+              {header}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {paginatedReportRows.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={Math.max(reportHeader.length, 1)} className="h-24 text-center text-muted-foreground">
+              No report data matches the current filters.
+            </TableCell>
+          </TableRow>
+        ) : (
+          paginatedReportRows.map((row, rowIndex) => (
+            <TableRow key={`${reportType}-${safeReportPage}-${rowIndex}`}>
+              {row.map((cell, cellIndex) => {
+                const header = String(reportHeader[cellIndex] || '').toLowerCase();
+                const isNumericColumn =
+                  header.includes('amount') ||
+                  header.includes('total') ||
+                  header.includes('limit') ||
+                  header.includes('spent') ||
+                  header.includes('current') ||
+                  header.includes('target') ||
+                  header.includes('remaining');
+
+                return (
+                  <TableCell key={`${rowIndex}-${cellIndex}`} className={isNumericColumn ? 'text-right font-semibold' : cellIndex === 0 ? 'font-medium' : undefined}>
+                    {renderCellValue(cell)}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+
   const renderEmpty = () => (
     <TableRow>
       <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
@@ -195,7 +270,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderSummary = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Metric</TableHead>
           <TableHead>Description</TableHead>
@@ -229,7 +304,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderCategories = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Expense Category</TableHead>
           <TableHead className="text-right">Share</TableHead>
@@ -255,7 +330,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderExpenses = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Date</TableHead>
           <TableHead>Description</TableHead>
@@ -280,7 +355,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderIncome = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Date</TableHead>
           <TableHead>Description</TableHead>
@@ -305,7 +380,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderBudgets = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Category</TableHead>
           <TableHead>Period</TableHead>
@@ -335,7 +410,7 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
 
   const renderGoals = () => (
     <Table>
-      <TableHeader className="bg-muted/40">
+      <TableHeader>
         <TableRow>
           <TableHead className="px-4">Goal</TableHead>
           <TableHead>Priority</TableHead>
@@ -359,12 +434,24 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
   );
 
   return (
-    <Card className="border-border">
-      <CardHeader className="gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <CardTitle className="text-xl">Reports</CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">{currentReport?.label}</p>
+    <FeatureShell
+      title="Reports"
+      description="Generate printable and exportable reports for summaries, transactions, budgets, and goals."
+      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><ReceiptText className="h-4 w-4" /> Reporting workspace</span>}
+      actions={
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePrint} disabled={loading} className="gap-2 border-border bg-background">
+            <Printer className="h-4 w-4" />
+            Print
+          </Button>
+          <PrimaryAction onClick={handleExportExcel} disabled={loading} className="gap-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            Export XLSX
+          </PrimaryAction>
         </div>
+      }
+    >
+      <WorkspaceCard title={currentReport?.label || 'Report'} description="Choose the report type, then print or export the visible data.">
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end lg:w-auto">
           <div className="w-full space-y-2 sm:w-[320px]">
             <div className="text-sm font-medium text-foreground">Choose report</div>
@@ -381,32 +468,31 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handlePrint} disabled={loading} className="gap-2 border-border">
-              <Printer className="h-4 w-4" />
-              Print
-            </Button>
-            <Button onClick={handleExportExcel} disabled={loading} className="gap-2 bg-green-600 text-white hover:bg-green-700">
-              <FileSpreadsheet className="h-4 w-4" />
-              Export XLSX
-            </Button>
-          </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="report-print-area overflow-hidden rounded-lg border border-border">
+        <TableControls
+          searchValue={reportSearch}
+          onSearchChange={setReportSearch}
+          searchPlaceholder="Search report rows..."
+          onReset={() => setReportSearch('')}
+        />
+        <div className="report-print-area overflow-hidden rounded-xl border border-border">
           <h1 className="report-print-title">{currentReport?.label || 'Report'}</h1>
           {loading && (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground">Loading report...</div>
           )}
-          {!loading && reportType === 'summary' && renderSummary()}
-          {!loading && reportType === 'categories' && renderCategories()}
-          {!loading && reportType === 'expenses' && renderExpenses()}
-          {!loading && reportType === 'income' && renderIncome()}
-          {!loading && reportType === 'budgets' && renderBudgets()}
-          {!loading && reportType === 'goals' && renderGoals()}
+          {!loading && renderCurrentReportTable()}
+          {!loading && (
+            <TablePagination
+              page={safeReportPage}
+              totalPages={reportTotalPages}
+              rowsPerPage={reportRowsPerPage}
+              totalRows={filteredReportRows.length}
+              onPageChange={setReportPage}
+              onRowsPerPageChange={setReportRowsPerPage}
+            />
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </WorkspaceCard>
+    </FeatureShell>
   );
 }

@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plus, Tags, Trash2 } from 'lucide-react';
 import type { Category } from '@/lib/types';
 import { apiUrl } from '@/lib/api';
+import { ActionIconButton, FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
 
 interface CategoriesPanelProps {
   userId: string;
@@ -20,6 +22,7 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [color, setColor] = useState('#10b981');
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -52,6 +55,7 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
       const data = await response.json();
       setCategories((current) => [...current, data.data].sort((a, b) => a.name.localeCompare(b.name)));
       setName('');
+      setShowForm(false);
     }
   };
 
@@ -67,61 +71,106 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-xl">Categories</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <form onSubmit={handleAddCategory} className="grid gap-3 md:grid-cols-[1fr_160px_96px_auto] md:items-end">
-          <div className="space-y-2">
-            <Label htmlFor="category-name">Name</Label>
-            <Input id="category-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Groceries" />
-          </div>
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <Select value={type} onValueChange={(value) => setType(value as 'expense' | 'income')}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expense">Expense</SelectItem>
-                <SelectItem value="income">Income</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="category-color">Color</Label>
-            <Input id="category-color" type="color" value={color} onChange={(event) => setColor(event.target.value)} />
-          </div>
-          <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-            <Plus className="mr-2 h-4 w-4" />
-            Add
-          </Button>
-        </form>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          {categories.map((category) => (
-            <div key={category.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <div className="flex items-center gap-3">
-                <span className="h-4 w-4 rounded-full" style={{ backgroundColor: category.color }} />
-                <div>
-                  <div className="font-medium text-foreground">{category.name}</div>
-                  <Badge variant="outline" className="mt-1 border-border capitalize">
-                    {category.type}
-                  </Badge>
-                </div>
-              </div>
-              <button
-                className="text-destructive hover:bg-destructive/10 p-2 rounded transition-colors"
-                onClick={() => handleDeleteCategory(category.id)}
-                aria-label="Delete category"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+    <FeatureShell
+      title="Categories"
+      description="Maintain reusable income and expense categories for cleaner reports, budgets, and activity tracking."
+      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Tags className="h-4 w-4" /> Category library</span>}
+      actions={
+        <PrimaryAction onClick={() => setShowForm(true)} size="sm">
+          <Plus className="h-4 w-4" />
+          Add Category
+        </PrimaryAction>
+      }
+    >
+      <WorkspaceCard title="Category Library" description="Add, color-code, and remove categories used across the finance workspace.">
+        <div className="overflow-hidden rounded-xl border border-border">
+          <Table className="min-w-[680px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Color</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    No categories yet.
+                  </TableCell>
+                </TableRow>
+              ) : categories.map((category) => (
+                <TableRow key={category.id}>
+                  <TableCell className="font-medium text-foreground">{category.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-border capitalize">
+                      {category.type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: category.color }} />
+                      {category.color}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ActionIconButton
+                      label="Delete category"
+                      tone="danger"
+                      onClick={() => handleDeleteCategory(category.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </ActionIconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-      </CardContent>
-    </Card>
+      </WorkspaceCard>
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="w-[calc(100vw-2rem)] border-border p-0 sm:max-w-2xl">
+          <form onSubmit={handleAddCategory}>
+            <div className="border-b border-border bg-card px-6 py-5">
+              <DialogHeader>
+                <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary">
+                  <Tags className="h-4 w-4" />
+                  Category entry
+                </div>
+                <DialogTitle className="text-2xl">Add category</DialogTitle>
+                <DialogDescription>Create a reusable category for transactions, budgets, and reports.</DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="grid gap-4 bg-[color-mix(in_oklch,var(--primary)_5%,transparent)] px-6 py-5 md:grid-cols-[1fr_180px_120px]">
+              <div className="space-y-2">
+                <Label htmlFor="category-name">Name</Label>
+                <Input id="category-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Groceries" className="h-11" />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={type} onValueChange={(value) => setType(value as 'expense' | 'income')}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expense">Expense</SelectItem>
+                    <SelectItem value="income">Income</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category-color">Color</Label>
+                <Input id="category-color" type="color" value={color} onChange={(event) => setColor(event.target.value)} className="h-11" />
+              </div>
+            </div>
+            <DialogFooter className="border-t border-border bg-card px-6 py-4">
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <PrimaryAction type="submit">Add Category</PrimaryAction>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </FeatureShell>
   );
 }

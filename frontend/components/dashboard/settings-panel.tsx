@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Settings } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import currencies from '@/currency_code/Common-Currency.json';
+import { FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
 
 interface SettingsPanelProps {
   userId: string;
@@ -73,11 +73,12 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-xl">Settings</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <FeatureShell
+      title="Settings"
+      description="Update your profile, currency, theme preference, and account security settings."
+      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Settings className="h-4 w-4" /> Account preferences</span>}
+    >
+      <WorkspaceCard title="Profile Settings" description="These settings control your dashboard identity and display preferences.">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="profile-name">Full Name</Label>
@@ -139,12 +140,12 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button onClick={handleSaveProfile} className="border border-green-700 bg-green-600 font-semibold text-white shadow-sm hover:bg-green-700">
+          <PrimaryAction onClick={handleSaveProfile}>
             Save Profile
-          </Button>
+          </PrimaryAction>
           {saved && <span className="text-sm font-medium text-green-600">Profile saved</span>}
         </div>
-      </CardContent>
-    </Card>
+      </WorkspaceCard>
+    </FeatureShell>
   );
 }
