@@ -142,17 +142,17 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-background/98 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out dark:bg-card md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0 pt-20 md:pt-0',
+          'fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-background/95 shadow-2xl backdrop-blur-md transition-transform duration-300 ease-in-out dark:bg-card md:sticky md:top-14 md:h-[calc(100vh-3.5rem)] md:translate-x-0 pt-20 md:pt-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="flex h-full flex-col gap-3 p-4">
+        <div className="flex h-full flex-col gap-3 p-3">
           <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search sidebar..."
-            className="h-10 border-border bg-background"
+            className="h-10 rounded-lg border-border bg-card shadow-sm"
           />
 
           <nav className="flex-1 space-y-2 overflow-y-auto pr-1">
@@ -171,7 +171,7 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
                   key={item.id}
                   variant={isActive ? 'default' : 'ghost'}
                   className={cn(
-                    'w-full justify-start gap-3 px-1 text-base font-medium',
+                    'h-10 w-full justify-start gap-3 rounded-lg px-3 text-[15px] font-medium',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-foreground hover:bg-muted'
@@ -188,12 +188,12 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
             })}
           </nav>
 
-          <div className="pt-3 border-t border-border">
+          <div className="border-t border-border pt-3">
             <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="destructive"
-                  className="w-full bg-red-600 text-white hover:bg-red-700"
+                  className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Logout
                 </Button>
