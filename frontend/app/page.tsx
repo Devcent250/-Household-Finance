@@ -84,20 +84,29 @@ export default function LandingPage() {
       }
 
       if (!isLogin) {
-        showAuthSuccess('Account created', 'Your account is ready. Please sign in.');
-        setIsLogin(true);
-        setFormData({
-          email: formData.email,
-          password: '',
-          name: '',
-        });
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('userEmail', data.email);
+        localStorage.setItem('userName', data.fullName || formData.name || '');
+        if (data.household) {
+          localStorage.setItem('householdId', String(data.household.id));
+          localStorage.setItem('householdName', data.household.name);
+        }
+        router.push('/dashboard');
         return;
       }
 
       localStorage.setItem('userId', data.userId);
       localStorage.setItem('userEmail', data.email);
       localStorage.setItem('userName', data.fullName || formData.name || '');
-      router.push('/dashboard');
+      if (data.household) {
+        localStorage.setItem('householdId', String(data.household.id));
+        localStorage.setItem('householdName', data.household.name);
+        router.push('/dashboard');
+      } else if (data.isSuperAdmin) {
+        router.push('/setup');
+      } else {
+        router.push('/pending');
+      }
     } catch (err) {
       setAuthSuccess(null);
       showAuthError('Connection error', 'An error occurred. Please try again.');
@@ -128,7 +137,15 @@ export default function LandingPage() {
       localStorage.setItem('userId', data.userId);
       localStorage.setItem('userEmail', data.email);
       localStorage.setItem('userName', data.fullName || 'Demo Household');
-      router.push('/dashboard');
+      if (data.household) {
+        localStorage.setItem('householdId', String(data.household.id));
+        localStorage.setItem('householdName', data.household.name);
+        router.push('/dashboard');
+      } else if (data.isSuperAdmin) {
+        router.push('/setup');
+      } else {
+        router.push('/pending');
+      }
     } catch (err) {
       showAuthError('Connection error', 'The backend is not responding. Please start the API server.');
       console.error('[v0] Demo auth error:', err);

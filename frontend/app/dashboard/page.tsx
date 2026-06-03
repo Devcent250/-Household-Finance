@@ -56,6 +56,11 @@ export default function Dashboard() {
       router.push('/');
       return;
     }
+    const storedHouseholdId = localStorage.getItem('householdId');
+    if (!storedHouseholdId) {
+      router.push('/setup');
+      return;
+    }
     setUserId(storedUserId);
   }, [router]);
 
@@ -103,7 +108,7 @@ export default function Dashboard() {
       case 'users':
         return <UsersPanel userId={userId} />;
       case 'roles':
-        return <RolesPanel />;
+        return <RolesPanel userId={userId} />;
       default:
         return <DashboardOverview userId={userId} onNavigate={handleTabChange} />;
     }

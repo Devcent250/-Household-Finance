@@ -47,6 +47,25 @@ async function query(text, params) {
   return result.rows;
 }
 
+async function ensureSuperAdmin() {
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`);
+  const passwordHash = hashPassword('1234567890');
+  const existing = await query("SELECT id FROM users WHERE email = 'admin@admin.com'");
+  if (existing.length === 0) {
+    const result = await query(
+      `INSERT INTO users (email, full_name, password_hash, is_super_admin, created_at)
+       VALUES ('admin@admin.com', 'Super Admin', $1, true, NOW())
+       RETURNING id`,
+      [passwordHash]
+    );
+    console.log(`Super-admin created (id=${result[0].id})`);
+  } else {
+    // Ensure existing admin@admin.com has super_admin flag
+    await query("UPDATE users SET is_super_admin = true WHERE email = 'admin@admin.com'");
+    console.log('Super-admin ensured');
+  }
+}
+
 function serializeGoal(goal) {
   return {
     ...goal,
@@ -59,7 +78,7 @@ function sendJson(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
-    'Access-Control-Allow-Headers': 'Content-Type, x-user-id',
+    'Access-Control-Allow-Headers': 'Content-Type, x-user-id, x-household-id',
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   });
   res.end(JSON.stringify(body));
@@ -102,6 +121,28 @@ async function ensureDemoUser() {
   );
   const userId = users[0].id;
 
+  // Create or get existing household
+  let householdId;
+  const existingHousehold = await query(
+    'SELECT id FROM households WHERE owner_id = $1 LIMIT 1',
+    [userId]
+  );
+  if (existingHousehold.length > 0) {
+    householdId = existingHousehold[0].id;
+  } else {
+    const h = await query(
+      `INSERT INTO households (name, owner_id, currency) VALUES ('Demo Household', $1, 'USD') RETURNING id`,
+      [userId]
+    );
+    householdId = h[0].id;
+    const roles = await ensureDefaultRoles(householdId);
+    await query(
+      `INSERT INTO household_members (household_id, user_id, role_id) VALUES ($1, $2, $3)
+       ON CONFLICT (household_id, user_id) DO NOTHING`,
+      [householdId, userId, roles.adminRoleId]
+    );
+  }
+
   const expenseCategories = [
     ['Groceries', 'shopping-cart', '#ef4444'],
     ['Transport', 'car', '#f97316'],
@@ -116,53 +157,462 @@ async function ensureDemoUser() {
 
   for (const [name, icon, color] of expenseCategories) {
     await query(
-      `INSERT INTO categories (user_id, name, icon, color, type)
-       VALUES ($1, $2, $3, $4, 'expense')
-       ON CONFLICT (user_id, name, type) DO NOTHING`,
-      [userId, name, icon, color]
+      `INSERT INTO categories (household_id, user_id, name, icon, color, type)
+       VALUES ($1, $2, $3, $4, $5, 'expense')
+       ON CONFLICT (household_id, name, type) DO NOTHING`,
+      [householdId, userId, name, icon, color]
     );
   }
 
   for (const [name, icon, color] of incomeCategories) {
     await query(
-      `INSERT INTO categories (user_id, name, icon, color, type)
-       VALUES ($1, $2, $3, $4, 'income')
-       ON CONFLICT (user_id, name, type) DO NOTHING`,
-      [userId, name, icon, color]
+      `INSERT INTO categories (household_id, user_id, name, icon, color, type)
+       VALUES ($1, $2, $3, $4, $5, 'income')
+       ON CONFLICT (household_id, name, type) DO NOTHING`,
+      [householdId, userId, name, icon, color]
     );
   }
 
-  const existingExpenses = await query('SELECT id FROM expenses WHERE user_id = $1 LIMIT 1', [userId]);
+  const existingExpenses = await query('SELECT id FROM expenses WHERE household_id = $1 LIMIT 1', [householdId]);
   if (existingExpenses.length === 0) {
-    const categories = await query('SELECT id, name, type FROM categories WHERE user_id = $1', [userId]);
+    const categories = await query('SELECT id, name, type FROM categories WHERE household_id = $1', [householdId]);
     const categoryId = (name, type) => categories.find((category) => category.name === name && category.type === type)?.id;
 
     await query(
-      `INSERT INTO income (user_id, category_id, amount, description, date, source)
-       VALUES ($1, $2, 5200, 'Monthly salary', CURRENT_DATE, 'Employer')`,
-      [userId, categoryId('Salary', 'income')]
+      `INSERT INTO income (household_id, user_id, category_id, amount, description, date, source)
+       VALUES ($1, $2, $3, 5200, 'Monthly salary', CURRENT_DATE, 'Employer')`,
+      [householdId, userId, categoryId('Salary', 'income')]
     );
     await query(
-      `INSERT INTO expenses (user_id, category_id, amount, description, date, payment_method)
+      `INSERT INTO expenses (household_id, user_id, category_id, amount, description, date, payment_method)
        VALUES
-       ($1, $2, 420, 'Weekly groceries', CURRENT_DATE, 'Debit Card'),
-       ($1, $3, 1200, 'Monthly rent', CURRENT_DATE, 'Bank Transfer'),
-       ($1, $4, 95, 'Electricity and water', CURRENT_DATE, 'Debit Order')`,
-      [userId, categoryId('Groceries', 'expense'), categoryId('Rent', 'expense'), categoryId('Utilities', 'expense')]
+       ($1, $2, $3, 420, 'Weekly groceries', CURRENT_DATE, 'Debit Card'),
+       ($1, $2, $4, 1200, 'Monthly rent', CURRENT_DATE, 'Bank Transfer'),
+       ($1, $2, $5, 95, 'Electricity and water', CURRENT_DATE, 'Debit Order')`,
+      [householdId, userId, categoryId('Groceries', 'expense'), categoryId('Rent', 'expense'), categoryId('Utilities', 'expense')]
     );
     await query(
-      `INSERT INTO budgets (user_id, category_id, limit_amount, period, alert_threshold, period_start_date)
-       VALUES ($1, $2, 600, 'monthly', 80, DATE_TRUNC('month', CURRENT_DATE)::date)`,
-      [userId, categoryId('Groceries', 'expense')]
+      `INSERT INTO budgets (household_id, user_id, category_id, limit_amount, period, alert_threshold, period_start_date)
+       VALUES ($1, $2, $3, 600, 'monthly', 80, DATE_TRUNC('month', CURRENT_DATE)::date)`,
+      [householdId, userId, categoryId('Groceries', 'expense')]
     );
     await query(
-      `INSERT INTO financial_goals (user_id, name, target_amount, current_amount, deadline, category, priority)
-       VALUES ($1, 'Emergency fund', 3000, 850, CURRENT_DATE + INTERVAL '6 months', 'savings', 'high')`,
-      [userId]
+      `INSERT INTO financial_goals (household_id, user_id, name, target_amount, current_amount, deadline, category, priority)
+       VALUES ($1, $2, 'Emergency fund', 3000, 850, CURRENT_DATE + INTERVAL '6 months', 'savings', 'high')`,
+      [householdId, userId]
     );
   }
 
   return users[0];
+}
+
+// ─── Multi-tenant helpers ─────────────────────────────────────────────
+
+const ALL_PERMISSIONS = [
+  'expenses:create', 'expenses:view', 'expenses:edit', 'expenses:delete',
+  'income:create', 'income:view', 'income:edit', 'income:delete',
+  'budgets:create', 'budgets:view', 'budgets:edit', 'budgets:delete',
+  'goals:create', 'goals:view', 'goals:edit', 'goals:delete',
+  'categories:manage', 'reports:view', 'analytics:view',
+  'members:manage', 'roles:manage', 'settings:manage',
+];
+
+async function getHouseholdContext(req) {
+  const userId = getUserId(req);
+  if (!userId) return null;
+
+  let householdId = req.headers['x-household-id'];
+  if (!householdId) {
+    const rows = await query(
+      'SELECT household_id FROM household_members WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    if (rows.length === 0) return null;
+    householdId = String(rows[0].household_id);
+  }
+
+  const member = await query(
+    `SELECT hm.role_id, hm.household_id, h.owner_id
+     FROM household_members hm
+     JOIN households h ON h.id = hm.household_id
+     WHERE hm.household_id = $1 AND hm.user_id = $2`,
+    [householdId, userId]
+  );
+
+  if (member.length === 0) return null;
+
+  const isOwner = member[0].owner_id === Number(userId);
+  const permissions = new Set();
+
+  if (isOwner) {
+    permissions.add('*');
+  } else if (member[0].role_id) {
+    const perms = await query(
+      'SELECT permission_key FROM household_role_permissions WHERE role_id = $1',
+      [member[0].role_id]
+    );
+    perms.forEach((p) => permissions.add(p.permission_key));
+  }
+
+  return {
+    userId: Number(userId),
+    householdId: member[0].household_id,
+    roleId: member[0].role_id,
+    isOwner,
+    permissions,
+  };
+}
+
+function requirePermission(context, permission) {
+  if (!context) return false;
+  return context.isOwner || context.permissions.has('*') || context.permissions.has(permission);
+}
+
+async function ensureDefaultRoles(householdId) {
+  const existing = await query('SELECT id FROM household_roles WHERE household_id = $1 LIMIT 1', [householdId]);
+  if (existing.length > 0) return;
+
+  const adminRole = await query(
+    `INSERT INTO household_roles (household_id, name, description)
+     VALUES ($1, 'Admin', 'Full access to all household features')
+     RETURNING id`,
+    [householdId]
+  );
+
+  for (const pk of ALL_PERMISSIONS) {
+    await query(
+      `INSERT INTO household_role_permissions (role_id, permission_key) VALUES ($1, $2)`,
+      [adminRole[0].id, pk]
+    );
+  }
+
+  const memberRole = await query(
+    `INSERT INTO household_roles (household_id, name, description)
+     VALUES ($1, 'Member', 'Can view and record expenses and income')
+     RETURNING id`,
+    [householdId]
+  );
+
+  const memberPerms = [
+    'expenses:create', 'expenses:view', 'expenses:edit',
+    'income:create', 'income:view', 'income:edit',
+    'goals:view', 'goals:edit',
+    'budgets:view',
+    'reports:view', 'analytics:view',
+  ];
+  for (const pk of memberPerms) {
+    await query(
+      `INSERT INTO household_role_permissions (role_id, permission_key) VALUES ($1, $2)`,
+      [memberRole[0].id, pk]
+    );
+  }
+
+  return { adminRoleId: adminRole[0].id, memberRoleId: memberRole[0].id };
+}
+
+// ─── Household handlers ───────────────────────────────────────────────
+
+async function handleHouseholds(req, res) {
+  const userId = getUserId(req);
+  if (!userId) return sendJson(res, 401, { success: false, error: 'User ID required' });
+
+  if (req.method === 'GET') {
+    const rows = await query(
+      `SELECT h.*, hm.role_id, hr.name as role_name
+       FROM households h
+       JOIN household_members hm ON hm.household_id = h.id
+       LEFT JOIN household_roles hr ON hr.id = hm.role_id
+       WHERE hm.user_id = $1
+       ORDER BY h.created_at DESC`,
+      [userId]
+    );
+    return sendJson(res, 200, { success: true, data: rows });
+  }
+
+  if (req.method === 'POST') {
+    const { name, currency } = await readJson(req);
+    if (!name) return sendJson(res, 400, { success: false, error: 'Household name required' });
+
+    const rows = await query(
+      `INSERT INTO households (name, owner_id, currency)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [name, userId, currency || 'USD']
+    );
+
+    const householdId = rows[0].id;
+    const roles = await ensureDefaultRoles(householdId);
+
+    await query(
+      `INSERT INTO household_members (household_id, user_id, role_id)
+       VALUES ($1, $2, $3)`,
+      [householdId, userId, roles.adminRoleId]
+    );
+
+    return sendJson(res, 201, { success: true, data: rows[0], message: 'Household created' });
+  }
+
+  return sendJson(res, 404, { message: 'Not found' });
+}
+
+async function handleHouseholdPatch(req, res, url) {
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  if (!requirePermission(ctx, 'settings:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
+  const id = url.pathname === '/api/households' ? ctx.householdId : idFromPath(url.pathname, '/api/households');
+  if (!id) return sendJson(res, 400, { success: false, error: 'Household ID required' });
+
+  const { name, currency } = await readJson(req);
+  const updates = [];
+  const params = [];
+
+  for (const [col, val] of [['name', name], ['currency', currency]]) {
+    if (val !== undefined && val !== '') {
+      params.push(val);
+      updates.push(`${col} = $${params.length}`);
+    }
+  }
+
+  if (updates.length === 0) return sendJson(res, 400, { success: false, error: 'No changes' });
+
+  params.push(id);
+  const rows = await query(
+    `UPDATE households SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
+    params
+  );
+  return sendJson(res, 200, { success: true, data: rows[0] });
+}
+
+// ─── Member handlers ──────────────────────────────────────────────────
+
+async function handleMembers(req, res, url) {
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+
+  if (req.method === 'GET') {
+    if (!requirePermission(ctx, 'members:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
+    const rows = await query(
+      `SELECT hm.id, hm.user_id, hm.role_id, hm.created_at AS joined_at,
+              u.email, u.full_name,
+              hr.name AS role_name
+       FROM household_members hm
+       JOIN users u ON u.id = hm.user_id
+       LEFT JOIN household_roles hr ON hr.id = hm.role_id
+       WHERE hm.household_id = $1
+       ORDER BY hm.created_at ASC`,
+      [ctx.householdId]
+    );
+    return sendJson(res, 200, { success: true, data: rows });
+  }
+
+  if (!requirePermission(ctx, 'members:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
+  if (req.method === 'POST') {
+    const { email, full_name, password, role_id } = await readJson(req);
+    if (!email || !full_name || !password) {
+      return sendJson(res, 400, { success: false, error: 'email, full_name, and password required' });
+    }
+    if (password.length < 6) return sendJson(res, 400, { success: false, error: 'Password must be at least 6 characters' });
+
+    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+    let userId;
+    if (existing.length > 0) {
+      userId = existing[0].id;
+      const alreadyMember = await query(
+        'SELECT id FROM household_members WHERE household_id = $1 AND user_id = $2',
+        [ctx.householdId, userId]
+      );
+      if (alreadyMember.length > 0) {
+        return sendJson(res, 409, { success: false, error: 'User is already a member of this household' });
+      }
+    } else {
+      const newUser = await query(
+        `INSERT INTO users (email, full_name, password_hash, created_at)
+         VALUES ($1, $2, $3, NOW())
+         RETURNING id`,
+        [email, full_name, hashPassword(password)]
+      );
+      userId = newUser[0].id;
+    }
+
+    // If no role_id specified, assign default Member role
+    let finalRoleId = role_id;
+    if (!finalRoleId) {
+      const defaultRole = await query(
+        `SELECT id FROM household_roles WHERE household_id = $1 AND name = 'Member' LIMIT 1`,
+        [ctx.householdId]
+      );
+      finalRoleId = defaultRole.length > 0 ? defaultRole[0].id : null;
+    }
+
+    await query(
+      `INSERT INTO household_members (household_id, user_id, role_id) VALUES ($1, $2, $3)`,
+      [ctx.householdId, userId, finalRoleId]
+    );
+
+    return sendJson(res, 201, { success: true, message: 'Member added' });
+  }
+
+  if (req.method === 'DELETE') {
+    const memberId = idFromPath(url.pathname, '/api/households/members');
+    if (!memberId) return sendJson(res, 400, { success: false, error: 'Member ID required' });
+
+    const member = await query(
+      'SELECT user_id FROM household_members WHERE id = $1 AND household_id = $2',
+      [memberId, ctx.householdId]
+    );
+    if (member.length === 0) return sendJson(res, 404, { success: false, error: 'Member not found' });
+    if (member[0].user_id === ctx.userId) return sendJson(res, 400, { success: false, error: 'Cannot remove yourself' });
+
+    await query('DELETE FROM household_members WHERE id = $1', [memberId]);
+    return sendJson(res, 200, { success: true, message: 'Member removed' });
+  }
+
+  if (req.method === 'PATCH') {
+    const memberId = idFromPath(url.pathname, '/api/households/members');
+    if (!memberId) return sendJson(res, 400, { success: false, error: 'Member ID required' });
+
+    const body = await readJson(req);
+
+    // Update user fields if provided
+    if (body.full_name || body.email) {
+      const member = await query(
+        'SELECT user_id FROM household_members WHERE id = $1 AND household_id = $2',
+        [memberId, ctx.householdId]
+      );
+      if (member.length === 0) return sendJson(res, 404, { success: false, error: 'Member not found' });
+
+      const updates = [];
+      const params = [];
+      let idx = 1;
+      if (body.full_name) { updates.push(`full_name = $${idx++}`); params.push(body.full_name); }
+      if (body.email) { updates.push(`email = $${idx++}`); params.push(body.email); }
+      params.push(member[0].user_id);
+      await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+    }
+
+    // Update role if provided
+    if (body.role_id) {
+      const role = await query(
+        'SELECT id FROM household_roles WHERE id = $1 AND household_id = $2',
+        [body.role_id, ctx.householdId]
+      );
+      if (role.length === 0) return sendJson(res, 400, { success: false, error: 'Role not found' });
+
+      await query(
+        'UPDATE household_members SET role_id = $1 WHERE id = $2 AND household_id = $3',
+        [body.role_id, memberId, ctx.householdId]
+      );
+    }
+
+    return sendJson(res, 200, { success: true, message: 'Member updated' });
+  }
+
+  return sendJson(res, 404, { message: 'Not found' });
+}
+
+// ─── Role handlers ────────────────────────────────────────────────────
+
+async function handleRoles(req, res, url) {
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+
+  if (req.method === 'GET') {
+    const rows = await query(
+      `SELECT hr.*,
+        COALESCE(
+          (SELECT json_agg(hrp.permission_key) FROM household_role_permissions hrp WHERE hrp.role_id = hr.id),
+          '[]'::json
+        ) AS permissions
+       FROM household_roles hr
+       WHERE hr.household_id = $1
+       ORDER BY hr.created_at ASC`,
+      [ctx.householdId]
+    );
+    return sendJson(res, 200, { success: true, data: rows });
+  }
+
+  if (!requirePermission(ctx, 'roles:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
+  if (req.method === 'POST') {
+    const { name, description, permissions } = await readJson(req);
+    if (!name) return sendJson(res, 400, { success: false, error: 'Role name required' });
+
+    const role = await query(
+      `INSERT INTO household_roles (household_id, name, description) VALUES ($1, $2, $3) RETURNING *`,
+      [ctx.householdId, name, description || '']
+    );
+
+    if (Array.isArray(permissions)) {
+      for (const pk of permissions) {
+        if (ALL_PERMISSIONS.includes(pk)) {
+          await query(
+            `INSERT INTO household_role_permissions (role_id, permission_key) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [role[0].id, pk]
+          );
+        }
+      }
+    }
+
+    return sendJson(res, 201, { success: true, data: role[0] });
+  }
+
+  return sendJson(res, 404, { message: 'Not found' });
+}
+
+async function handleRoleById(req, res, url) {
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  if (!requirePermission(ctx, 'roles:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
+  const roleId = idFromPath(url.pathname, '/api/households/roles');
+  if (!roleId) return sendJson(res, 400, { success: false, error: 'Role ID required' });
+
+  const role = await query(
+    'SELECT * FROM household_roles WHERE id = $1 AND household_id = $2',
+    [roleId, ctx.householdId]
+  );
+  if (role.length === 0) return sendJson(res, 404, { success: false, error: 'Role not found' });
+
+  if (req.method === 'DELETE') {
+    await query('DELETE FROM household_roles WHERE id = $1', [roleId]);
+    return sendJson(res, 200, { success: true, message: 'Role deleted' });
+  }
+
+  if (req.method === 'PATCH') {
+    const { name, description, permissions } = await readJson(req);
+
+    if (name !== undefined || description !== undefined) {
+      const updates = [];
+      const params = [];
+      if (name !== undefined) { params.push(name); updates.push(`name = $${params.length}`); }
+      if (description !== undefined) { params.push(description); updates.push(`description = $${params.length}`); }
+      params.push(roleId);
+      await query(`UPDATE household_roles SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+    }
+
+    if (Array.isArray(permissions)) {
+      await query('DELETE FROM household_role_permissions WHERE role_id = $1', [roleId]);
+      for (const pk of permissions) {
+        if (ALL_PERMISSIONS.includes(pk)) {
+          await query(
+            `INSERT INTO household_role_permissions (role_id, permission_key) VALUES ($1, $2)`,
+            [roleId, pk]
+          );
+        }
+      }
+    }
+
+    return sendJson(res, 200, { success: true, message: 'Role updated' });
+  }
+
+  return sendJson(res, 404, { message: 'Not found' });
+}
+
+async function handlePermissionsList(req, res) {
+  return sendJson(res, 200, { success: true, data: ALL_PERMISSIONS });
 }
 
 async function seedDefaultCategories(userId) {
@@ -176,12 +626,19 @@ async function seedDefaultCategories(userId) {
     ['Freelance', 'laptop', '#14b8a6', 'income'],
   ];
 
+  // Get user's household
+  const member = await query(
+    'SELECT household_id FROM household_members WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+  const householdId = member.length > 0 ? member[0].household_id : null;
+
   for (const [name, icon, color, type] of defaults) {
     await query(
-      `INSERT INTO categories (user_id, name, icon, color, type)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (user_id, name, type) DO NOTHING`,
-      [userId, name, icon, color, type]
+      `INSERT INTO categories (household_id, user_id, name, icon, color, type)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (household_id, name, type) DO NOTHING`,
+      [householdId, userId, name, icon, color, type]
     );
   }
 }
@@ -191,9 +648,17 @@ async function handleAuth(req, res, pathname) {
 
   if (pathname === '/api/auth/demo') {
     const user = await ensureDemoUser();
+    let household = null;
+    const memberships = await query(
+      'SELECT hm.household_id, h.name AS household_name FROM household_members hm JOIN households h ON h.id = hm.household_id WHERE hm.user_id = $1 LIMIT 1',
+      [user.id]
+    );
+    if (memberships.length > 0) household = memberships[0];
     return sendJson(res, 200, {
       userId: user.id,
       email: user.email,
+      household: household ? { id: household.household_id, name: household.household_name } : null,
+      isSuperAdmin: false,
       message: 'Demo account ready',
     });
   }
@@ -218,12 +683,14 @@ async function handleAuth(req, res, pathname) {
        RETURNING id, email`,
       [email, name, hashPassword(password)]
     );
-    await seedDefaultCategories(rows[0].id);
+    const userId = rows[0].id;
 
     return sendJson(res, 201, {
-      userId: rows[0].id,
+      userId,
       email: rows[0].email,
       fullName: name,
+      household: null,
+      isSuperAdmin: false,
       message: 'Registration successful',
     });
   }
@@ -235,7 +702,7 @@ async function handleAuth(req, res, pathname) {
     }
 
     const rows = await query(
-      'SELECT id, email, full_name, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, full_name, password_hash, is_super_admin FROM users WHERE email = $1',
       [email]
     );
 
@@ -243,10 +710,21 @@ async function handleAuth(req, res, pathname) {
       return sendJson(res, 401, { message: 'Invalid email or password' });
     }
 
+    const userId = rows[0].id;
+    const isSuperAdmin = rows[0].is_super_admin === true;
+    let household = null;
+    const memberships = await query(
+      'SELECT hm.household_id, h.name AS household_name FROM household_members hm JOIN households h ON h.id = hm.household_id WHERE hm.user_id = $1 LIMIT 1',
+      [userId]
+    );
+    if (memberships.length > 0) household = memberships[0];
+
     return sendJson(res, 200, {
-      userId: rows[0].id,
+      userId,
       email: rows[0].email,
       fullName: rows[0].full_name,
+      household: household ? { id: household.household_id, name: household.household_name } : null,
+      isSuperAdmin,
       message: 'Login successful',
     });
   }
@@ -311,15 +789,16 @@ async function handleProfile(req, res) {
 }
 
 async function handleCategories(req, res, url) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
 
   if (req.method === 'GET') {
+    if (!requirePermission(ctx, 'categories:manage') && !requirePermission(ctx, 'expenses:view')) {
+      return sendJson(res, 403, { success: false, error: 'Permission denied' });
+    }
     const type = url.searchParams.get('type');
-    const params = [userId];
-    let sql = 'SELECT * FROM categories WHERE user_id = $1';
+    const params = [ctx.householdId];
+    let sql = 'SELECT * FROM categories WHERE household_id = $1';
 
     if (type) {
       params.push(type);
@@ -331,67 +810,67 @@ async function handleCategories(req, res, url) {
   }
 
   if (req.method === 'DELETE') {
+    if (!requirePermission(ctx, 'categories:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, '/api/categories');
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Category ID required' });
-    }
-    const rows = await query('DELETE FROM categories WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
+    if (!id) return sendJson(res, 400, { success: false, error: 'Category ID required' });
+    const rows = await query('DELETE FROM categories WHERE id = $1 AND household_id = $2 RETURNING id', [id, ctx.householdId]);
     return sendJson(res, rows.length ? 200 : 404, {
       success: rows.length > 0,
       message: rows.length ? 'Category deleted successfully' : 'Category not found',
     });
   }
 
+  if (!requirePermission(ctx, 'categories:manage')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
   const { name, icon, color, type } = await readJson(req);
-  if (!name || !type) {
-    return sendJson(res, 400, { success: false, error: 'Missing required fields' });
-  }
-  if (!['expense', 'income'].includes(type)) {
-    return sendJson(res, 400, { success: false, error: 'Invalid category type' });
-  }
+  if (!name || !type) return sendJson(res, 400, { success: false, error: 'Missing required fields' });
+  if (!['expense', 'income'].includes(type)) return sendJson(res, 400, { success: false, error: 'Invalid category type' });
 
   const rows = await query(
-    `INSERT INTO categories (user_id, name, icon, color, type)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO categories (household_id, user_id, name, icon, color, type)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [userId, name, icon || 'tag', color || '#10b981', type]
+    [ctx.householdId, ctx.userId, name, icon || 'tag', color || '#10b981', type]
   );
   return sendJson(res, 201, { success: true, data: rows[0], message: 'Category created successfully' });
 }
 
 async function handleTransactions(req, res, url, table) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+
+  const permView = table === 'expenses' ? 'expenses:view' : 'income:view';
+  const permCreate = table === 'expenses' ? 'expenses:create' : 'income:create';
+  const permEdit = table === 'expenses' ? 'expenses:edit' : 'income:edit';
+  const permDelete = table === 'expenses' ? 'expenses:delete' : 'income:delete';
 
   if (req.method === 'GET') {
+    if (!requirePermission(ctx, permView)) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const month = url.searchParams.get('month');
     const year = url.searchParams.get('year');
     const categoryId = url.searchParams.get('categoryId');
-    const params = [userId];
-    let sql = `SELECT * FROM ${table} WHERE user_id = $1`;
+    const params = [ctx.householdId];
+    let sql = `SELECT t.*, c.name AS category_name, c.color AS category_color, c.icon AS category_icon FROM ${table} t JOIN categories c ON c.id = t.category_id WHERE t.household_id = $1`;
 
     if (month && year) {
       params.push(`${year}-${String(month).padStart(2, '0')}-01`);
-      sql += ` AND DATE_TRUNC('month', date) = DATE_TRUNC('month', $${params.length}::date)`;
+      sql += ` AND DATE_TRUNC('month', t.date) = DATE_TRUNC('month', $${params.length}::date)`;
     }
 
     if (categoryId) {
       params.push(categoryId);
-      sql += ` AND category_id = $${params.length}`;
+      sql += ` AND t.category_id = $${params.length}`;
     }
 
-    const rows = await query(`${sql} ORDER BY date DESC`, params);
+    const rows = await query(`${sql} ORDER BY t.date DESC`, params);
     return sendJson(res, 200, { success: true, data: rows });
   }
 
   if (req.method === 'DELETE') {
+    if (!requirePermission(ctx, permDelete)) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, `/api/${table}`);
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Transaction ID required' });
-    }
-    const rows = await query(`DELETE FROM ${table} WHERE id = $1 AND user_id = $2 RETURNING id`, [id, userId]);
+    if (!id) return sendJson(res, 400, { success: false, error: 'Transaction ID required' });
+    const rows = await query(`DELETE FROM ${table} WHERE id = $1 AND household_id = $2 RETURNING id`, [id, ctx.householdId]);
     return sendJson(res, rows.length ? 200 : 404, {
       success: rows.length > 0,
       message: rows.length ? 'Transaction deleted successfully' : 'Transaction not found',
@@ -399,10 +878,9 @@ async function handleTransactions(req, res, url, table) {
   }
 
   if (req.method === 'PATCH') {
+    if (!requirePermission(ctx, permEdit)) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, `/api/${table}`);
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Transaction ID required' });
-    }
+    if (!id) return sendJson(res, 400, { success: false, error: 'Transaction ID required' });
 
     const body = await readJson(req);
     const allowedFields = table === 'expenses'
@@ -418,15 +896,13 @@ async function handleTransactions(req, res, url, table) {
       }
     }
 
-    if (updates.length === 0) {
-      return sendJson(res, 400, { success: false, error: 'No changes supplied' });
-    }
+    if (updates.length === 0) return sendJson(res, 400, { success: false, error: 'No changes supplied' });
 
-    params.push(id, userId);
+    params.push(id, ctx.householdId);
     const rows = await query(
       `UPDATE ${table}
        SET ${updates.join(', ')}, updated_at = NOW()
-       WHERE id = $${params.length - 1} AND user_id = $${params.length}
+       WHERE id = $${params.length - 1} AND household_id = $${params.length}
        RETURNING *`,
       params
     );
@@ -437,44 +913,43 @@ async function handleTransactions(req, res, url, table) {
     });
   }
 
+  if (!requirePermission(ctx, permCreate)) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
   const body = await readJson(req);
   const { category_id, amount, description, date, notes } = body;
-  if (!category_id || !amount || !date) {
-    return sendJson(res, 400, { success: false, error: 'Missing required fields' });
-  }
+  if (!category_id || !amount || !date) return sendJson(res, 400, { success: false, error: 'Missing required fields' });
 
   if (table === 'expenses') {
     const rows = await query(
-      `INSERT INTO expenses (user_id, category_id, amount, description, date, payment_method, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO expenses (household_id, user_id, category_id, amount, description, date, payment_method, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [userId, category_id, amount, description, date, body.payment_method, notes]
+      [ctx.householdId, ctx.userId, category_id, amount, description, date, body.payment_method, notes]
     );
     return sendJson(res, 201, { success: true, data: rows[0], message: 'Expense created successfully' });
   }
 
   const rows = await query(
-    `INSERT INTO income (user_id, category_id, amount, description, date, source, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO income (household_id, user_id, category_id, amount, description, date, source, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [userId, category_id, amount, description, date, body.source, notes]
+    [ctx.householdId, ctx.userId, category_id, amount, description, date, body.source, notes]
   );
   return sendJson(res, 201, { success: true, data: rows[0], message: 'Income recorded successfully' });
 }
 
 async function handleBudgets(req, res, url) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
 
   if (req.method === 'GET') {
+    if (!requirePermission(ctx, 'budgets:view')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const rows = await query(
-      `SELECT b.*,
+      `SELECT b.*, c.name AS category_name, c.color AS category_color,
         COALESCE((
           SELECT SUM(e.amount)
           FROM expenses e
-          WHERE e.user_id = b.user_id
+          WHERE e.household_id = b.household_id
             AND e.category_id = b.category_id
             AND e.date >= b.period_start_date
             AND (
@@ -484,21 +959,21 @@ async function handleBudgets(req, res, url) {
             )
         ), 0) AS spent_amount
        FROM budgets b
-       WHERE b.user_id = $1 AND b.is_active = true
+       JOIN categories c ON c.id = b.category_id
+       WHERE b.household_id = $1 AND b.is_active = true
        ORDER BY b.created_at DESC`,
-      [userId]
+      [ctx.householdId]
     );
     return sendJson(res, 200, { success: true, data: rows });
   }
 
   if (req.method === 'DELETE') {
+    if (!requirePermission(ctx, 'budgets:delete')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, '/api/budgets');
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Budget ID required' });
-    }
+    if (!id) return sendJson(res, 400, { success: false, error: 'Budget ID required' });
     const rows = await query(
-      'UPDATE budgets SET is_active = false, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, userId]
+      'UPDATE budgets SET is_active = false, updated_at = NOW() WHERE id = $1 AND household_id = $2 RETURNING id',
+      [id, ctx.householdId]
     );
     return sendJson(res, rows.length ? 200 : 404, {
       success: rows.length > 0,
@@ -506,51 +981,47 @@ async function handleBudgets(req, res, url) {
     });
   }
 
+  if (!requirePermission(ctx, 'budgets:create')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
   const { category_id, limit_amount, period, alert_threshold, period_start_date } = await readJson(req);
-  if (!category_id || !limit_amount || !period) {
-    return sendJson(res, 400, { success: false, error: 'Missing required fields' });
-  }
-  if (!['monthly', 'yearly', 'weekly'].includes(period)) {
-    return sendJson(res, 400, { success: false, error: 'Invalid period' });
-  }
+  if (!category_id || !limit_amount || !period) return sendJson(res, 400, { success: false, error: 'Missing required fields' });
+  if (!['monthly', 'yearly', 'weekly'].includes(period)) return sendJson(res, 400, { success: false, error: 'Invalid period' });
 
   const rows = await query(
-    `INSERT INTO budgets (user_id, category_id, limit_amount, period, alert_threshold, period_start_date)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO budgets (household_id, user_id, category_id, limit_amount, period, alert_threshold, period_start_date)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [userId, category_id, limit_amount, period, alert_threshold || 80, period_start_date || new Date().toISOString().split('T')[0]]
+    [ctx.householdId, ctx.userId, category_id, limit_amount, period, alert_threshold || 80, period_start_date || new Date().toISOString().split('T')[0]]
   );
   return sendJson(res, 201, { success: true, data: rows[0], message: 'Budget created successfully' });
 }
 
 async function handleGoals(req, res, url) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
 
   if (req.method === 'GET') {
+    if (!requirePermission(ctx, 'goals:view')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const rows = await query(
-      'SELECT * FROM financial_goals WHERE user_id = $1 ORDER BY deadline ASC',
-      [userId]
+      'SELECT * FROM financial_goals WHERE household_id = $1 ORDER BY deadline ASC',
+      [ctx.householdId]
     );
     return sendJson(res, 200, { success: true, data: rows.map(serializeGoal) });
   }
 
   if (req.method === 'PATCH') {
+    if (!requirePermission(ctx, 'goals:edit')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, '/api/goals');
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Goal ID required' });
-    }
+    if (!id) return sendJson(res, 400, { success: false, error: 'Goal ID required' });
     const { current_amount, is_completed } = await readJson(req);
     const rows = await query(
       `UPDATE financial_goals
        SET current_amount = COALESCE($1, current_amount),
            is_completed = COALESCE($2, is_completed),
            updated_at = NOW()
-       WHERE id = $3 AND user_id = $4
+       WHERE id = $3 AND household_id = $4
        RETURNING *`,
-      [current_amount, is_completed, id, userId]
+      [current_amount, is_completed, id, ctx.householdId]
     );
     return sendJson(res, rows.length ? 200 : 404, {
       success: rows.length > 0,
@@ -560,71 +1031,68 @@ async function handleGoals(req, res, url) {
   }
 
   if (req.method === 'DELETE') {
+    if (!requirePermission(ctx, 'goals:delete')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
     const id = idFromPath(url.pathname, '/api/goals');
-    if (!id) {
-      return sendJson(res, 400, { success: false, error: 'Goal ID required' });
-    }
-    const rows = await query('DELETE FROM financial_goals WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
+    if (!id) return sendJson(res, 400, { success: false, error: 'Goal ID required' });
+    const rows = await query('DELETE FROM financial_goals WHERE id = $1 AND household_id = $2 RETURNING id', [id, ctx.householdId]);
     return sendJson(res, rows.length ? 200 : 404, {
       success: rows.length > 0,
       message: rows.length ? 'Goal deleted successfully' : 'Goal not found',
     });
   }
 
+  if (!requirePermission(ctx, 'goals:create')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
+
   const { name, target_amount, deadline, category, priority, current_amount } = await readJson(req);
-  if (!name || !target_amount) {
-    return sendJson(res, 400, { success: false, error: 'Missing required fields' });
-  }
+  if (!name || !target_amount) return sendJson(res, 400, { success: false, error: 'Missing required fields' });
 
   const rows = await query(
-    `INSERT INTO financial_goals (user_id, name, target_amount, current_amount, deadline, category, priority)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO financial_goals (household_id, user_id, name, target_amount, current_amount, deadline, category, priority)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [userId, name, target_amount, current_amount || 0, deadline || null, category, priority || 'medium']
+    [ctx.householdId, ctx.userId, name, target_amount, current_amount || 0, deadline || null, category, priority || 'medium']
   );
   return sendJson(res, 201, { success: true, data: serializeGoal(rows[0]), message: 'Goal created successfully' });
 }
 
 async function handleReports(req, res) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  if (!requirePermission(ctx, 'reports:view')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
 
   const rows = await query(
     `SELECT
-      COALESCE((SELECT SUM(amount) FROM income WHERE user_id = $1), 0) AS total_income,
-      COALESCE((SELECT SUM(amount) FROM expenses WHERE user_id = $1), 0) AS total_expenses,
-      COALESCE((SELECT SUM(target_amount - current_amount) FROM financial_goals WHERE user_id = $1 AND is_completed = false), 0) AS remaining_goals,
+      COALESCE((SELECT SUM(amount) FROM income WHERE household_id = $1), 0) AS total_income,
+      COALESCE((SELECT SUM(amount) FROM expenses WHERE household_id = $1), 0) AS total_expenses,
+      COALESCE((SELECT SUM(target_amount - current_amount) FROM financial_goals WHERE household_id = $1 AND is_completed = false), 0) AS remaining_goals,
       (
         SELECT COALESCE(json_agg(row_to_json(category_totals)), '[]'::json)
         FROM (
           SELECT c.name, c.color, COALESCE(SUM(e.amount), 0) AS amount
           FROM categories c
-          LEFT JOIN expenses e ON e.category_id = c.id AND e.user_id = c.user_id
-          WHERE c.user_id = $1 AND c.type = 'expense'
+          LEFT JOIN expenses e ON e.category_id = c.id AND e.household_id = c.household_id
+          WHERE c.household_id = $1 AND c.type = 'expense'
           GROUP BY c.name, c.color
           ORDER BY amount DESC
         ) category_totals
       ) AS category_totals`,
-    [userId]
+    [ctx.householdId]
   );
 
   return sendJson(res, 200, { success: true, data: rows[0] });
 }
 
 async function handleAlerts(req, res) {
-  const userId = getUserId(req);
-  if (!userId) {
-    return sendJson(res, 401, { success: false, error: 'User ID required' });
-  }
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  if (!requirePermission(ctx, 'budgets:view')) return sendJson(res, 403, { success: false, error: 'Permission denied' });
 
   const rows = await query(
     `SELECT b.id, c.name AS category_name, b.limit_amount, b.alert_threshold,
       COALESCE(SUM(e.amount), 0) AS spent_amount
      FROM budgets b
      JOIN categories c ON c.id = b.category_id
-     LEFT JOIN expenses e ON e.user_id = b.user_id
+     LEFT JOIN expenses e ON e.household_id = b.household_id
        AND e.category_id = b.category_id
        AND e.date >= b.period_start_date
        AND (
@@ -632,14 +1100,89 @@ async function handleAlerts(req, res) {
          (b.period = 'monthly' AND e.date < b.period_start_date + INTERVAL '1 month') OR
          (b.period = 'yearly' AND e.date < b.period_start_date + INTERVAL '1 year')
        )
-     WHERE b.user_id = $1 AND b.is_active = true
+     WHERE b.household_id = $1 AND b.is_active = true
      GROUP BY b.id, c.name
      HAVING CASE WHEN b.limit_amount > 0 THEN (COALESCE(SUM(e.amount), 0) / b.limit_amount) * 100 ELSE 0 END >= b.alert_threshold
      ORDER BY spent_amount DESC`,
-    [userId]
+    [ctx.householdId]
   );
 
   return sendJson(res, 200, { success: true, data: rows });
+}
+
+// ─── Super-admin helpers ────────────────────────────────────────────
+
+async function isSuperAdmin(userId) {
+  const rows = await query('SELECT is_super_admin FROM users WHERE id = $1', [userId]);
+  return rows.length > 0 && rows[0].is_super_admin === true;
+}
+
+async function handleAdminHouseholds(req, res, url) {
+  const userId = getUserId(req);
+  if (!userId || !(await isSuperAdmin(userId))) {
+    return sendJson(res, 403, { success: false, error: 'Super-admin access required' });
+  }
+
+  if (req.method === 'GET') {
+    const rows = await query(
+      `SELECT h.*, u.email AS owner_email, u.full_name AS owner_name,
+        (SELECT COUNT(*) FROM household_members WHERE household_id = h.id) AS member_count
+       FROM households h
+       JOIN users u ON u.id = h.owner_id
+       ORDER BY h.created_at DESC`
+    );
+    return sendJson(res, 200, { success: true, data: rows });
+  }
+
+  if (req.method === 'POST') {
+    const { name, admin_email, admin_name, admin_password } = await readJson(req);
+    if (!name || !admin_email) {
+      return sendJson(res, 400, { success: false, error: 'Household name and admin email required' });
+    }
+
+    // Create or find admin user
+    let adminUser = await query('SELECT id FROM users WHERE email = $1', [admin_email]);
+    let adminUserId;
+    if (adminUser.length > 0) {
+      adminUserId = adminUser[0].id;
+    } else {
+      if (!admin_password) return sendJson(res, 400, { success: false, error: 'Password required for new admin user' });
+      if (admin_password.length < 6) return sendJson(res, 400, { success: false, error: 'Password must be at least 6 characters' });
+      const newUser = await query(
+        `INSERT INTO users (email, full_name, password_hash, created_at)
+         VALUES ($1, $2, $3, NOW()) RETURNING id`,
+        [admin_email, admin_name || 'Household Admin', hashPassword(admin_password)]
+      );
+      adminUserId = newUser[0].id;
+    }
+
+    // Create household
+    const hh = await query(
+      `INSERT INTO households (name, owner_id) VALUES ($1, $2) RETURNING *`,
+      [name, adminUserId]
+    );
+    const householdId = hh[0].id;
+
+    const roles = await ensureDefaultRoles(householdId);
+    await query(
+      `INSERT INTO household_members (household_id, user_id, role_id) VALUES ($1, $2, $3)
+       ON CONFLICT (household_id, user_id) DO NOTHING`,
+      [householdId, adminUserId, roles.adminRoleId]
+    );
+
+    // Seed default categories for the admin
+    try {
+      await seedDefaultCategories(adminUserId);
+    } catch (_) {}
+
+    return sendJson(res, 201, {
+      success: true,
+      data: { ...hh[0], admin_user_id: adminUserId },
+      message: 'Household created with admin',
+    });
+  }
+
+  return sendJson(res, 404, { message: 'Not found' });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -677,6 +1220,37 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/alerts' && req.method === 'GET') {
       return await handleAlerts(req, res);
     }
+    // ─── Multi-tenant routes ─────────────────────────────────────
+    if ((url.pathname === '/api/households' || url.pathname.startsWith('/api/households/')) && req.method === 'PATCH') {
+      return await handleHouseholdPatch(req, res, url);
+    }
+    if (url.pathname === '/api/households' && req.method === 'GET') {
+      return await handleHouseholds(req, res);
+    }
+    if (url.pathname === '/api/households' && req.method === 'POST') {
+      // Household creation restricted to super-admin
+      const uid = getUserId(req);
+      if (!uid || !(await isSuperAdmin(uid))) {
+        return sendJson(res, 403, { success: false, error: 'Only super-admin can create households' });
+      }
+      return await handleHouseholds(req, res);
+    }
+    if ((url.pathname === '/api/households/members' || url.pathname.startsWith('/api/households/members/')) && ['GET', 'POST', 'DELETE', 'PATCH'].includes(req.method)) {
+      return await handleMembers(req, res, url);
+    }
+    if (url.pathname === '/api/households/roles' && ['GET', 'POST'].includes(req.method)) {
+      return await handleRoles(req, res, url);
+    }
+    if (url.pathname.startsWith('/api/households/roles/') && ['DELETE', 'PATCH'].includes(req.method)) {
+      return await handleRoleById(req, res, url);
+    }
+    if (url.pathname === '/api/households/permissions' && req.method === 'GET') {
+      return await handlePermissionsList(req, res);
+    }
+    // ─── Super-admin routes ───────────────────────────────────────
+    if (url.pathname === '/api/admin/households' && ['GET', 'POST'].includes(req.method)) {
+      return await handleAdminHouseholds(req, res, url);
+    }
 
     return sendJson(res, 404, { message: 'Not found' });
   } catch (error) {
@@ -689,6 +1263,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Backend API listening on http://localhost:${PORT}`);
+ensureSuperAdmin().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Backend API listening on http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Super-admin seed failed:', err.message);
+  server.listen(PORT, () => {
+    console.log(`Backend API listening on http://localhost:${PORT}`);
+  });
 });

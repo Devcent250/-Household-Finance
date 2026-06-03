@@ -28,9 +28,11 @@ export default function Navigation({ onTabChange }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [householdName, setHouseholdName] = useState('');
 
   useEffect(() => {
     setUserEmail(localStorage.getItem('userEmail') || '');
+    setHouseholdName(localStorage.getItem('householdName') || '');
   }, []);
 
   const handleLogout = () => {
@@ -68,6 +70,11 @@ export default function Navigation({ onTabChange }: NavigationProps) {
           </div>
 
           <div className="hidden min-w-0 items-center justify-end gap-1.5 md:flex">
+            {householdName && (
+              <div className="mr-1 flex min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 shadow-sm">
+                <span className="truncate text-sm font-semibold text-foreground" style={{ textDecoration: 'underline double' }}>{householdName}</span>
+              </div>
+            )}
             {userEmail && (
               <div className="mr-1 flex min-w-0 max-w-[210px] items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 shadow-sm xl:max-w-[250px]">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -126,10 +133,13 @@ export default function Navigation({ onTabChange }: NavigationProps) {
                   <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
                     <UserRound className="h-4 w-4" />
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
                     <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
                   </div>
+                  {householdName && (
+                    <span className="shrink-0 text-xs font-semibold text-foreground" style={{ textDecoration: 'underline double' }}>{householdName}</span>
+                  )}
                 </div>
               )}
               <div className="space-y-2 border-t border-border/70 pt-3">

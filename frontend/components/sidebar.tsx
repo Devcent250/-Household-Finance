@@ -188,7 +188,10 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
             })}
           </nav>
 
-          <div className="border-t border-border pt-3">
+          <div className="border-t border-border pt-3 space-y-2">
+            <div className="px-3 text-xs text-muted-foreground">
+              {localStorage.getItem('householdName') || 'No household'}
+            </div>
             <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
               <AlertDialogTrigger asChild>
                 <Button
@@ -211,6 +214,8 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
                     onClick={() => {
                       localStorage.removeItem('userId');
                       localStorage.removeItem('userEmail');
+                      localStorage.removeItem('householdId');
+                      localStorage.removeItem('householdName');
                       router.push('/');
                     }}
                   >
