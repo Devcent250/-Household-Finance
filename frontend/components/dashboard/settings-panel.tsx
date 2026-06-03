@@ -20,7 +20,7 @@ import {
   TriangleAlert,
   User,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import currencies from '@/currency_code/Common-Currency.json';
 import { FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
@@ -142,7 +142,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
 
   // ── load on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch(apiUrl('/api/profile'), { headers: { 'x-user-id': userId } })
+    apiFetch('/api/profile', userId)
       .then((r) => r.json())
       .then((data) => {
         if (data.data) {
@@ -169,9 +169,9 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
   const handleSaveProfile = async () => {
     setProfileSaving(true);
     try {
-      const res = await fetch(apiUrl('/api/profile'), {
+      const res = await apiFetch('/api/profile', userId, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile),
       });
       if (res.ok) {

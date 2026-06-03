@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Bell } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import { EmptyState, FeatureShell, ProgressBar, WorkspaceCard } from './dashboard-ui';
 
@@ -23,9 +23,7 @@ export default function AlertsPanel({ userId }: AlertsPanelProps) {
   const [alerts, setAlerts] = useState<BudgetAlert[]>([]);
 
   useEffect(() => {
-    fetch(apiUrl('/api/alerts'), {
-      headers: { 'x-user-id': userId },
-    })
+    apiFetch('/api/alerts', userId)
       .then((response) => response.json())
       .then((data) => setAlerts(data.data || []))
       .catch((error) => console.error('Error fetching alerts:', error));

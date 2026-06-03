@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { BarChart3, CalendarRange, Tags, TrendingDown, WalletCards } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import type { Category, Expense } from '@/lib/types';
 import { useCurrency } from '@/components/currency-provider';
 import { EmptyState, FeatureShell, WorkspaceCard } from './dashboard-ui';
@@ -34,12 +34,8 @@ export default function Analytics({ userId }: AnalyticsProps) {
     try {
       const currentDate = new Date();
       const [expensesRes, categoriesRes] = await Promise.all([
-        fetch(apiUrl('/api/expenses'), {
-          headers: { 'x-user-id': userId },
-        }),
-        fetch(apiUrl('/api/categories?type=expense'), {
-          headers: { 'x-user-id': userId },
-        }),
+        apiFetch('/api/expenses', userId),
+        apiFetch('/api/categories?type=expense', userId),
       ]);
       const expensesData = await expensesRes.json();
       const categoriesData = await categoriesRes.json();

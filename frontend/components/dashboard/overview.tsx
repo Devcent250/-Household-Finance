@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Budget, Category, Expense, FinancialGoal, Income } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import * as XLSX from 'xlsx';
 import {
@@ -136,21 +136,11 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         const year = currentDate.getFullYear();
 
         const [expensesRes, incomeRes, budgetsRes, goalsRes, categoriesRes] = await Promise.all([
-          fetch(apiUrl(`/api/expenses?month=${month}&year=${year}`), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl(`/api/income?month=${month}&year=${year}`), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/budgets'), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/goals'), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/categories'), {
-            headers: { 'x-user-id': userId },
-          }),
+          apiFetch(`/api/expenses?month=${month}&year=${year}`, userId),
+          apiFetch(`/api/income?month=${month}&year=${year}`, userId),
+          apiFetch('/api/budgets', userId),
+          apiFetch('/api/goals', userId),
+          apiFetch('/api/categories', userId),
         ]);
 
         const [expensesData, incomeData, budgetsData, goalsData, categoriesData] = await Promise.all([

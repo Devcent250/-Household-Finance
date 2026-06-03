@@ -25,6 +25,7 @@ interface Role {
 }
 
 const ALL_PERMISSIONS = [
+  'dashboard:view',
   'expenses:create', 'expenses:view', 'expenses:edit', 'expenses:delete',
   'income:create', 'income:view', 'income:edit', 'income:delete',
   'budgets:create', 'budgets:view', 'budgets:edit', 'budgets:delete',
@@ -34,6 +35,7 @@ const ALL_PERMISSIONS = [
 ];
 
 const PERMISSION_LABELS: Record<string, string> = {
+  'dashboard:view': 'View Dashboard',
   'expenses:create': 'Create expenses',
   'expenses:view': 'View expenses',
   'expenses:edit': 'Edit expenses',

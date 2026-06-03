@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, CheckCircle, Target } from 'lucide-react';
 import type { FinancialGoal } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import { ActionIconButton, FeatureShell, PrimaryAction, ProgressBar, WorkspaceCard } from './dashboard-ui';
 
@@ -37,9 +37,7 @@ export default function FinancialGoals({ userId }: FinancialGoalsProps) {
 
   const fetchGoals = async () => {
     try {
-      const response = await fetch(apiUrl('/api/goals'), {
-        headers: { 'x-user-id': userId },
-      });
+      const response = await apiFetch('/api/goals', userId);
       const data = await response.json();
       setGoals(data.data || []);
     } catch (error) {
@@ -57,12 +55,9 @@ export default function FinancialGoals({ userId }: FinancialGoalsProps) {
     }
 
     try {
-      const response = await fetch(apiUrl('/api/goals'), {
+      const response = await apiFetch('/api/goals', userId, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newGoal,
           target_amount: parseFloat(newGoal.target_amount),
@@ -90,10 +85,7 @@ export default function FinancialGoals({ userId }: FinancialGoalsProps) {
 
   const handleDeleteGoal = async (id: number) => {
     try {
-      const response = await fetch(apiUrl(`/api/goals/${id}`), {
-        method: 'DELETE',
-        headers: { 'x-user-id': userId },
-      });
+      const response = await apiFetch(`/api/goals/${id}`, userId, { method: 'DELETE' });
 
       if (response.ok) {
         setGoals((current) => current.filter((goal) => goal.id !== id));
@@ -105,12 +97,9 @@ export default function FinancialGoals({ userId }: FinancialGoalsProps) {
 
   const handleCompleteGoal = async (goal: FinancialGoal) => {
     try {
-      const response = await fetch(apiUrl(`/api/goals/${goal.id}`), {
+      const response = await apiFetch(`/api/goals/${goal.id}`, userId, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           current_amount: goal.target_amount,
           is_completed: true,

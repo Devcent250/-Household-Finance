@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BarChart3,
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 interface SidebarProps {
   activeTab: string;
@@ -37,6 +38,21 @@ interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
+
+const tabPermissions: Record<string, string[]> = {
+  overview: ['dashboard:view'],
+  expenses: ['expenses:view'],
+  income: ['income:view'],
+  budgets: ['budgets:view'],
+  goals: ['goals:view'],
+  analytics: ['analytics:view'],
+  categories: ['categories:manage'],
+  reports: ['reports:view'],
+  alerts: ['budgets:view'],
+  settings: ['settings:manage'],
+  users: ['members:manage'],
+  roles: ['roles:manage'],
+};
 
 const navItems = [
   {
@@ -112,15 +128,44 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [householdName, setHouseholdName] = useState('');
+  const [userPermissions, setUserPermissions] = useState<Set<string>>(new Set());
+  const [isOwner, setIsOwner] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    setHouseholdName(localStorage.getItem('householdName') || '');
+    const userId = localStorage.getItem('userId');
+    if (!userId) return;
+    apiFetch('/api/households/my-permissions', userId)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUserPermissions(new Set(data.data.permissions || []));
+          setIsOwner(data.data.isOwner);
+          setIsSuperAdmin(data.data.isSuperAdmin);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const hasAccess = (tabId: string) => {
+    if (isOwner || isSuperAdmin) return true;
+    const required = tabPermissions[tabId];
+    if (!required || required.length === 0) return true;
+    return required.some((p) => userPermissions.has(p));
+  };
+
+  const visibleNavItems = useMemo(() => navItems.filter((item) => hasAccess(item.id)), [userPermissions, isOwner, isSuperAdmin]);
 
   const filteredNavItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
-      return navItems;
+      return visibleNavItems;
     }
 
-    return navItems.filter((item) => item.label.toLowerCase().includes(query));
-  }, [search]);
+    return visibleNavItems.filter((item) => item.label.toLowerCase().includes(query));
+  }, [search, visibleNavItems]);
 
   const filteredList = useMemo(() => {
     const itemMap = new Map(filteredNavItems.map((item) => [item.id, item]));
@@ -190,7 +235,7 @@ export default function Sidebar({ activeTab, onTabChange, isOpen = true, onClose
 
           <div className="border-t border-border pt-3 space-y-2">
             <div className="px-3 text-xs text-muted-foreground">
-              {localStorage.getItem('householdName') || 'No household'}
+              {householdName || 'No household'}
             </div>
             <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
               <AlertDialogTrigger asChild>

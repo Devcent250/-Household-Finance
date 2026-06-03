@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, WalletCards } from 'lucide-react';
 import type { Budget, Category } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import { ActionIconButton, FeatureShell, PrimaryAction, ProgressBar, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 
@@ -56,12 +56,8 @@ export default function BudgetManager({ userId }: BudgetManagerProps) {
   const fetchData = async () => {
     try {
       const [budgetsRes, categoriesRes] = await Promise.all([
-        fetch(apiUrl('/api/budgets'), {
-          headers: { 'x-user-id': userId },
-        }),
-        fetch(apiUrl('/api/categories?type=expense'), {
-          headers: { 'x-user-id': userId },
-        }),
+        apiFetch('/api/budgets', userId),
+        apiFetch('/api/categories?type=expense', userId),
       ]);
 
       const budgetsData = await budgetsRes.json();
@@ -84,12 +80,9 @@ export default function BudgetManager({ userId }: BudgetManagerProps) {
     }
 
     try {
-      const response = await fetch(apiUrl('/api/budgets'), {
+      const response = await apiFetch('/api/budgets', userId, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newBudget,
           limit_amount: parseFloat(newBudget.limit_amount),
@@ -110,10 +103,7 @@ export default function BudgetManager({ userId }: BudgetManagerProps) {
 
   const handleDeleteBudget = async (id: number) => {
     try {
-      const response = await fetch(apiUrl(`/api/budgets/${id}`), {
-        method: 'DELETE',
-        headers: { 'x-user-id': userId },
-      });
+      const response = await apiFetch(`/api/budgets/${id}`, userId, { method: 'DELETE' });
 
       if (response.ok) {
         setBudgets((current) => current.filter((budget) => budget.id !== id));

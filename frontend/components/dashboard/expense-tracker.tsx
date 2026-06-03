@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CalendarDays, CreditCard, Eye, FileText, Pencil, Plus, ReceiptText, Tags, Trash2, WalletCards } from 'lucide-react';
 import type { Expense, Category } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import { ActionIconButton, EmptyState, FeatureShell, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -66,12 +66,8 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
       const year = currentDate.getFullYear();
 
       const [expensesRes, categoriesRes] = await Promise.all([
-        fetch(apiUrl(`/api/expenses?month=${month}&year=${year}`), {
-          headers: { 'x-user-id': userId },
-        }),
-        fetch(apiUrl('/api/categories?type=expense'), {
-          headers: { 'x-user-id': userId },
-        }),
+        apiFetch(`/api/expenses?month=${month}&year=${year}`, userId),
+        apiFetch('/api/categories?type=expense', userId),
       ]);
 
       const expensesData = await expensesRes.json();
@@ -108,12 +104,9 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
     }
 
     try {
-      const response = await fetch(apiUrl(editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses'), {
+      const response = await apiFetch(editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses', userId, {
         method: editingExpenseId ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newExpense),
       });
 
@@ -147,10 +140,7 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
 
   const handleDeleteExpense = async (id: number) => {
     try {
-      const response = await fetch(apiUrl(`/api/expenses/${id}`), {
-        method: 'DELETE',
-        headers: { 'x-user-id': userId },
-      });
+    const response = await apiFetch(`/api/expenses/${id}`, userId, { method: 'DELETE' });
 
       if (response.ok) {
         setExpenses((current) => current.filter((expense) => expense.id !== id));

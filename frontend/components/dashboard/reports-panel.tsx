@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import type { Budget, Category, Expense, FinancialGoal, Income } from '@/lib/types';
 import { FeatureShell, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
@@ -49,15 +49,13 @@ export default function ReportsPanel({ userId }: ReportsPanelProps) {
   const [reportRowsPerPage, setReportRowsPerPage] = useState(10);
 
   useEffect(() => {
-    const headers = { 'x-user-id': userId };
-
     Promise.all([
-      fetch(apiUrl('/api/reports'), { headers }),
-      fetch(apiUrl('/api/expenses'), { headers }),
-      fetch(apiUrl('/api/income'), { headers }),
-      fetch(apiUrl('/api/budgets'), { headers }),
-      fetch(apiUrl('/api/goals'), { headers }),
-      fetch(apiUrl('/api/categories'), { headers }),
+      apiFetch('/api/reports', userId),
+      apiFetch('/api/expenses', userId),
+      apiFetch('/api/income', userId),
+      apiFetch('/api/budgets', userId),
+      apiFetch('/api/goals', userId),
+      apiFetch('/api/categories', userId),
     ])
       .then(async ([reportRes, expensesRes, incomeRes, budgetsRes, goalsRes, categoriesRes]) => {
         const [reportData, expensesData, incomeData, budgetsData, goalsData, categoriesData] = await Promise.all([

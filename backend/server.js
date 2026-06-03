@@ -209,6 +209,7 @@ async function ensureDemoUser() {
 // ─── Multi-tenant helpers ─────────────────────────────────────────────
 
 const ALL_PERMISSIONS = [
+  'dashboard:view',
   'expenses:create', 'expenses:view', 'expenses:edit', 'expenses:delete',
   'income:create', 'income:view', 'income:edit', 'income:delete',
   'budgets:create', 'budgets:view', 'budgets:edit', 'budgets:delete',
@@ -224,7 +225,7 @@ async function getHouseholdContext(req) {
   let householdId = req.headers['x-household-id'];
   if (!householdId) {
     const rows = await query(
-      'SELECT household_id FROM household_members WHERE user_id = $1 LIMIT 1',
+      'SELECT household_id FROM household_members WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
     if (rows.length === 0) return null;
@@ -294,6 +295,7 @@ async function ensureDefaultRoles(householdId) {
   );
 
   const memberPerms = [
+    'dashboard:view',
     'expenses:create', 'expenses:view', 'expenses:edit',
     'income:create', 'income:view', 'income:edit',
     'goals:view', 'goals:edit',
@@ -613,6 +615,21 @@ async function handleRoleById(req, res, url) {
 
 async function handlePermissionsList(req, res) {
   return sendJson(res, 200, { success: true, data: ALL_PERMISSIONS });
+}
+
+async function handleMyPermissions(req, res) {
+  const ctx = await getHouseholdContext(req);
+  if (!ctx) return sendJson(res, 401, { success: false, error: 'Unauthorized' });
+  return sendJson(res, 200, {
+    success: true,
+    data: {
+      userId: ctx.userId,
+      householdId: ctx.householdId,
+      isOwner: ctx.isOwner,
+      isSuperAdmin: await isSuperAdmin(ctx.userId),
+      permissions: Array.from(ctx.permissions),
+    },
+  });
 }
 
 async function seedDefaultCategories(userId) {
@@ -1221,20 +1238,6 @@ const server = http.createServer(async (req, res) => {
       return await handleAlerts(req, res);
     }
     // ─── Multi-tenant routes ─────────────────────────────────────
-    if ((url.pathname === '/api/households' || url.pathname.startsWith('/api/households/')) && req.method === 'PATCH') {
-      return await handleHouseholdPatch(req, res, url);
-    }
-    if (url.pathname === '/api/households' && req.method === 'GET') {
-      return await handleHouseholds(req, res);
-    }
-    if (url.pathname === '/api/households' && req.method === 'POST') {
-      // Household creation restricted to super-admin
-      const uid = getUserId(req);
-      if (!uid || !(await isSuperAdmin(uid))) {
-        return sendJson(res, 403, { success: false, error: 'Only super-admin can create households' });
-      }
-      return await handleHouseholds(req, res);
-    }
     if ((url.pathname === '/api/households/members' || url.pathname.startsWith('/api/households/members/')) && ['GET', 'POST', 'DELETE', 'PATCH'].includes(req.method)) {
       return await handleMembers(req, res, url);
     }
@@ -1246,6 +1249,22 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/households/permissions' && req.method === 'GET') {
       return await handlePermissionsList(req, res);
+    }
+    if (url.pathname === '/api/households/my-permissions' && req.method === 'GET') {
+      return await handleMyPermissions(req, res);
+    }
+    if ((url.pathname === '/api/households' || url.pathname.startsWith('/api/households/')) && req.method === 'PATCH') {
+      return await handleHouseholdPatch(req, res, url);
+    }
+    if (url.pathname === '/api/households' && req.method === 'GET') {
+      return await handleHouseholds(req, res);
+    }
+    if (url.pathname === '/api/households' && req.method === 'POST') {
+      const uid = getUserId(req);
+      if (!uid || !(await isSuperAdmin(uid))) {
+        return sendJson(res, 403, { success: false, error: 'Only super-admin can create households' });
+      }
+      return await handleHouseholds(req, res);
     }
     // ─── Super-admin routes ───────────────────────────────────────
     if (url.pathname === '/api/admin/households' && ['GET', 'POST'].includes(req.method)) {

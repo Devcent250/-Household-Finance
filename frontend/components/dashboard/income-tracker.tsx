@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CalendarDays, Eye, FileText, Landmark, Pencil, Plus, Tags, Trash2, TrendingUp, WalletCards } from 'lucide-react';
 import type { Income, Category } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import { ActionIconButton, FeatureShell, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -60,12 +60,8 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
       const year = currentDate.getFullYear();
 
       const [incomeRes, categoriesRes] = await Promise.all([
-        fetch(apiUrl(`/api/income?month=${month}&year=${year}`), {
-          headers: { 'x-user-id': userId },
-        }),
-        fetch(apiUrl('/api/categories?type=income'), {
-          headers: { 'x-user-id': userId },
-        }),
+        apiFetch(`/api/income?month=${month}&year=${year}`, userId),
+        apiFetch('/api/categories?type=income', userId),
       ]);
 
       const incomeData = await incomeRes.json();
@@ -102,12 +98,9 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
     }
 
     try {
-      const response = await fetch(apiUrl(editingIncomeId ? `/api/income/${editingIncomeId}` : '/api/income'), {
+      const response = await apiFetch(editingIncomeId ? `/api/income/${editingIncomeId}` : '/api/income', userId, {
         method: editingIncomeId ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newIncome),
       });
 
@@ -141,10 +134,7 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
 
   const handleDeleteIncome = async (id: number) => {
     try {
-      const response = await fetch(apiUrl(`/api/income/${id}`), {
-        method: 'DELETE',
-        headers: { 'x-user-id': userId },
-      });
+      const response = await apiFetch(`/api/income/${id}`, userId, { method: 'DELETE' });
 
       if (response.ok) {
         setIncomes((current) => current.filter((income) => income.id !== id));

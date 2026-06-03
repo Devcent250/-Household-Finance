@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Tags, Trash2 } from 'lucide-react';
 import type { Category } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { ActionIconButton, FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
 
 interface CategoriesPanelProps {
@@ -29,9 +29,7 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
   }, [userId]);
 
   const fetchCategories = async () => {
-    const response = await fetch(apiUrl('/api/categories'), {
-      headers: { 'x-user-id': userId },
-    });
+    const response = await apiFetch('/api/categories', userId);
     const data = await response.json();
     setCategories(data.data || []);
   };
@@ -42,12 +40,9 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
       return;
     }
 
-    const response = await fetch(apiUrl('/api/categories'), {
+    const response = await apiFetch('/api/categories', userId, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': userId,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), type, color }),
     });
 
@@ -60,10 +55,7 @@ export default function CategoriesPanel({ userId }: CategoriesPanelProps) {
   };
 
   const handleDeleteCategory = async (id: number) => {
-    const response = await fetch(apiUrl(`/api/categories/${id}`), {
-      method: 'DELETE',
-      headers: { 'x-user-id': userId },
-    });
+    const response = await apiFetch(`/api/categories/${id}`, userId, { method: 'DELETE' });
 
     if (response.ok) {
       setCategories((current) => current.filter((category) => category.id !== id));
