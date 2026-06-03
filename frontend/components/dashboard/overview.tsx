@@ -115,9 +115,9 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [preset, setPreset] = useState('today');
+  const [preset, setPreset] = useState('thisMonth');
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: new Date(),
+    from: startOfMonth(new Date()),
     to: new Date(),
   });
   const [activitySearch, setActivitySearch] = useState('');
