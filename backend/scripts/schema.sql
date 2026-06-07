@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   full_name VARCHAR(255),
+  is_super_admin BOOLEAN DEFAULT false,
   currency VARCHAR(3) DEFAULT 'USD',
   theme VARCHAR(20) DEFAULT 'light',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

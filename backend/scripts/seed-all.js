@@ -244,7 +244,10 @@ async function run() {
   try {
     await client.query('BEGIN');
 
-    // 1. Clear all data (order matters for FK constraints)
+    // 1. Ensure schema columns that schema.sql may not have
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`);
+
+    // 2. Clear all data (order matters for FK constraints)
     const tables = [
       'household_role_permissions', 'household_roles', 'household_members',
       'financial_goals', 'budgets', 'income', 'expenses',

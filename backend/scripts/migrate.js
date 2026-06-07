@@ -46,6 +46,9 @@ async function migrate() {
     // Apply schema (new tables + IF NOT EXISTS on existing)
     await client.query(sql);
 
+    // Ensure extra columns that may not be in schema.sql
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false');
+
     // Add household_id columns to existing tables that may lack them
     const alterStatements = [
       'ALTER TABLE categories ADD COLUMN IF NOT EXISTS household_id INTEGER REFERENCES households(id) ON DELETE CASCADE',
