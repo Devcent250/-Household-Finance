@@ -203,7 +203,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
                         <SelectValue placeholder="No role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {roles.map((role) => (
+                        {roles.filter((r) => r.name !== 'Superadmin').map((role) => (
                           <SelectItem key={role.id} value={String(role.id)}>
                             {role.name}
                           </SelectItem>
@@ -267,7 +267,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((role) => (
+                    {roles.filter((r) => r.name !== 'Superadmin').map((role) => (
                       <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -312,7 +312,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((role) => (
+                    {roles.filter((r) => r.name !== 'Superadmin').map((role) => (
                       <SelectItem key={role.id} value={String(role.id)}>{role.name}</SelectItem>
                     ))}
                   </SelectContent>
