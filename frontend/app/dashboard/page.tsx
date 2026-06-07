@@ -19,7 +19,6 @@ import RolesPanel from '@/components/dashboard/roles-panel';
 import Navigation from '@/components/navigation';
 import Sidebar from '@/components/sidebar';
 import { CurrencyProvider } from '@/components/currency-provider';
-import { apiFetch } from '@/lib/api';
 
 const dashboardTabs = new Set([
   'overview',
@@ -80,15 +79,12 @@ export default function Dashboard() {
       return;
     }
     setUserId(storedUserId);
-    apiFetch('/api/households/my-permissions', storedUserId)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setUserPermissions(new Set(data.data.permissions || []));
-          setIsOwner(data.data.isOwner);
-        }
-      })
-      .catch(() => {});
+    const storedPerms = localStorage.getItem('userPermissions');
+    const storedIsOwner = localStorage.getItem('isOwner');
+    if (storedPerms) {
+      setUserPermissions(new Set(JSON.parse(storedPerms)));
+      if (storedIsOwner) setIsOwner(storedIsOwner === 'true');
+    }
   }, [router]);
 
   useEffect(() => {
@@ -192,23 +188,23 @@ export default function Dashboard() {
         {/* Main Content */}
         <div className="flex-1 min-h-0 flex flex-col">
           {/* Mobile Menu Button */}
-          <div className="md:hidden sticky top-0 z-20 bg-card border-b border-border p-4 flex items-center gap-2">
+          <div className="md:hidden sticky top-0 z-20 bg-card border-b border-border p-2 flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-foreground"
+              className="text-foreground h-8 w-8"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg font-bold text-foreground">Dashboard</h1>
+            <h1 className="text-base font-bold text-foreground">Dashboard</h1>
           </div>
 
           {/* Page Content */}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-4 lg:px-6">
               <CurrencyProvider userId={userId}>
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {renderContent()}
                 </div>
               </CurrencyProvider>

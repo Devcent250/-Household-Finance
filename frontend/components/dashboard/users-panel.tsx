@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pencil, Plus, Trash2, Users } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { Building2, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { ActionIconButton, FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
 
 interface UsersPanelProps {
@@ -32,6 +32,11 @@ interface Role {
   description: string;
 }
 
+interface Household {
+  id: number;
+  name: string;
+}
+
 const hhHeaders = (userId: string) => ({
   'x-user-id': userId,
   'x-household-id': localStorage.getItem('householdId') || '',
@@ -40,6 +45,7 @@ const hhHeaders = (userId: string) => ({
 export default function UsersPanel({ userId }: UsersPanelProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [household, setHousehold] = useState<Household | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -54,6 +60,9 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
   useEffect(() => {
     fetchMembers();
     fetchRoles();
+    apiFetch('/api/households', userId).then((r) => r.json()).then((d) => {
+      if (d.data && d.data.length > 0) setHousehold(d.data[0]);
+    }).catch(() => {});
   }, [userId]);
 
   const fetchMembers = async () => {
@@ -150,10 +159,10 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
   };
 
   return (
-    <FeatureShell
-      title="Members"
-      description="Manage household members and assign roles."
-      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Users className="h-4 w-4" /> Household access</span>}
+      <FeatureShell
+        title={household ? `${household.name} — Members` : 'Members'}
+        description="Manage household members and assign roles."
+        eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Building2 className="h-4 w-4" /> {household?.name || 'Household'}</span>}
       actions={
         <PrimaryAction onClick={() => setShowForm(true)} size="sm">
           <Plus className="h-4 w-4" />
@@ -169,6 +178,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Household</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -176,7 +186,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
             <TableBody>
               {members.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     No members yet.
                   </TableCell>
                 </TableRow>
@@ -201,6 +211,7 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell>{household?.name || '—'}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(member.joined_at).toLocaleDateString()}
                   </TableCell>

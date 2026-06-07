@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Home, Plus, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Eye, Home, ArrowRight, ShieldCheck, Users } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 interface Household {
@@ -19,6 +20,15 @@ interface Household {
   created_at: string;
 }
 
+interface Member {
+  id: number;
+  user_id: number;
+  full_name: string;
+  email: string;
+  role_name: string | null;
+  joined_at: string;
+}
+
 export default function SetupPage() {
   const router = useRouter();
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -28,6 +38,9 @@ export default function SetupPage() {
   const [adminPassword, setAdminPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [detailHh, setDetailHh] = useState<Household | null>(null);
+  const [detailMembers, setDetailMembers] = useState<Member[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
@@ -74,79 +87,106 @@ export default function SetupPage() {
     setLoading(false);
   };
 
-  return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-foreground">Super Admin Panel</h1>
-              <p className="text-sm text-muted-foreground">Create households and assign administrators</p>
-            </div>
-            <Button variant="outline" onClick={() => router.push('/')}>
-              Back to Main
-            </Button>
-          </div>
+  const handleViewDetails = async (hh: Household) => {
+    setDetailHh(hh);
+    setDetailMembers([]);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/api/admin/households/${hh.id}/members`), {
+        headers: { 'x-user-id': userId || '' },
+      });
+      const data = await res.json();
+      setDetailMembers(data.data || []);
+    } catch {
+      setDetailMembers([]);
+    }
+    setDetailLoading(false);
+  };
 
-        <Card className="border-border/70">
-          <CardHeader>
-            <CardTitle>Create Household</CardTitle>
-            <CardDescription>Create a new household and assign an admin user.</CardDescription>
+  return (
+    <div className="min-h-screen bg-background p-4">
+      <div className="mx-auto max-w-4xl space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-foreground">Super Admin Panel</h1>
+            <p className="text-xs text-muted-foreground">Create households and assign administrators</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => router.push('/')} className="h-8 text-xs">
+            <Home className="h-3.5 w-3.5 mr-1" />
+            Main
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm">Create Household</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Household name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your household name" className="h-11" />
+          <CardContent className="px-4 pb-4">
+            <form onSubmit={handleCreate} className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Household name</Label>
+                  <Input className="h-8 text-xs" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your household name" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Admin email</Label>
-                  <Input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="Your admin email" className="h-11" />
+                <div className="space-y-1">
+                  <Label className="text-xs">Admin email</Label>
+                  <Input className="h-8 text-xs" type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="Your admin email" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Admin name</Label>
-                  <Input value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="Your admin name" className="h-11" />
+                <div className="space-y-1">
+                  <Label className="text-xs">Admin name</Label>
+                  <Input className="h-8 text-xs" value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="Your admin name" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Admin password</Label>
-                  <Input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Your password" className="h-11" />
+                <div className="space-y-1">
+                  <Label className="text-xs">Admin password</Label>
+                  <Input className="h-8 text-xs" type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="Your password" />
                 </div>
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={loading} className="h-11">
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <Button type="submit" size="sm" disabled={loading} className="h-8 text-xs">
                 {loading ? 'Creating...' : 'Create Household'}
-                {!loading && <ArrowRight className="h-4 w-4" />}
+                {!loading && <ArrowRight className="h-3.5 w-3.5 ml-1" />}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Card className="border-border/70">
-          <CardHeader>
-            <CardTitle>All Households</CardTitle>
-            <CardDescription>{households.length} household(s) in the system.</CardDescription>
+        <Card>
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm">All Households</CardTitle>
+            <div className="text-[11px] text-muted-foreground">{households.length} household(s) in the system.</div>
           </CardHeader>
-          <CardContent>
-            <div className="overflow-hidden rounded-xl border border-border">
-              <Table className="min-w-[600px]">
+          <CardContent className="px-4 pb-4">
+            <div className="overflow-hidden rounded-lg border border-border">
+              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead>Members</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead className="text-xs">Name</TableHead>
+                    <TableHead className="text-xs">Admin</TableHead>
+                    <TableHead className="text-xs">Members</TableHead>
+                    <TableHead className="text-xs">Created</TableHead>
+                    <TableHead className="text-xs text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {households.map((hh) => (
+                  {households.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-16 text-center text-xs text-muted-foreground">No households yet.</TableCell>
+                    </TableRow>
+                  ) : households.map((hh) => (
                     <TableRow key={hh.id}>
-                      <TableCell className="font-medium">{hh.name}</TableCell>
-                      <TableCell>{hh.owner_name} ({hh.owner_email})</TableCell>
-                      <TableCell>{hh.member_count}</TableCell>
-                      <TableCell className="text-muted-foreground">{new Date(hh.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-xs font-medium">{hh.name}</TableCell>
+                      <TableCell className="text-xs">{hh.owner_name} ({hh.owner_email})</TableCell>
+                      <TableCell className="text-xs">{hh.member_count}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(hh.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(hh)} className="h-7 text-xs gap-1">
+                          <Eye className="h-3 w-3" />
+                          View
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -155,6 +195,45 @@ export default function SetupPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!detailHh} onOpenChange={(open) => { if (!open) setDetailHh(null); }}>
+        <DialogContent className="border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Users className="h-4 w-4 text-primary" />
+              {detailHh?.name} — Members
+            </DialogTitle>
+          </DialogHeader>
+          {detailLoading ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">Loading...</div>
+          ) : detailMembers.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">No members found.</div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Name</TableHead>
+                    <TableHead className="text-xs">Email</TableHead>
+                    <TableHead className="text-xs">Role</TableHead>
+                    <TableHead className="text-xs">Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detailMembers.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-xs font-medium">{m.full_name || 'Unnamed'}</TableCell>
+                      <TableCell className="text-xs">{m.email}</TableCell>
+                      <TableCell className="text-xs capitalize">{m.role_name || 'No role'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(m.joined_at).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

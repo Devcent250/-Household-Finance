@@ -10,8 +10,10 @@ import { CalendarDays, Eye, FileText, Landmark, Pencil, Plus, Tags, Trash2, Tren
 import type { Income, Category } from '@/lib/types';
 import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
-import { ActionIconButton, FeatureShell, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
+import { ActionIconButton, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { toast } from '@/hooks/use-toast';
 
 interface IncomeTrackerProps {
   userId: string;
@@ -33,6 +35,7 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
   const [incomeRowsPerPage, setIncomeRowsPerPage] = useState(10);
   const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
   const [selectedIncome, setSelectedIncome] = useState<Income | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const emptyIncomeForm = {
     category_id: '',
     amount: '',
@@ -93,7 +96,7 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
   const handleSaveIncome = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newIncome.category_id || !newIncome.amount) {
-      alert('Please fill in required fields');
+      toast({ title: 'Missing fields', description: 'Please fill in required fields', variant: 'destructive' });
       return;
     }
 
@@ -138,6 +141,7 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
 
       if (response.ok) {
         setIncomes((current) => current.filter((income) => income.id !== id));
+        toast({ title: 'Deleted', description: 'Income entry deleted successfully' });
       }
     } catch (error) {
       console.error('Error deleting income:', error);
@@ -181,21 +185,17 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
   }
 
   return (
-    <FeatureShell
-      title="Income Tracker"
-      description="Capture household income, organize sources, and maintain a clean record of incoming cash flow."
-      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><TrendingUp className="h-4 w-4" /> Income workspace</span>}
-      actions={
-        <PrimaryAction
-          onClick={openAddIncomeModal}
-          size="sm"
-        >
-          <Plus className="h-4 w-4" />
-          Add Income
-        </PrimaryAction>
-      }
-    >
-      <WorkspaceCard title="Income Register" description="Add, edit, inspect, and remove income entries for this month.">
+    <>
+      <WorkspaceCard
+        title="Income Register"
+        description="Add, edit, inspect, and remove income entries for this month."
+        action={
+          <PrimaryAction onClick={openAddIncomeModal} size="sm">
+            <Plus className="h-4 w-4" />
+            Create
+          </PrimaryAction>
+        }
+      >
         <MetricStrip label="Total Income This Month" value={formatCurrency(totalIncome)} tone="text-emerald-700 dark:text-emerald-300" />
           <TableControls
             searchValue={incomeSearch}
@@ -232,50 +232,52 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
             <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-8 text-xs">#</TableHead>
+                  <TableHead className="text-xs">Date</TableHead>
+                  <TableHead className="text-xs">Description</TableHead>
+                  <TableHead className="text-xs">Category</TableHead>
+                  <TableHead className="text-xs">Source</TableHead>
+                  <TableHead className="text-right text-xs">Amount</TableHead>
+                  <TableHead className="text-right text-xs">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredIncomes.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       No income matches the current filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedIncomes.map((income) => (
+                  paginatedIncomes.map((income, index) => (
                       <TableRow key={income.id}>
-                        <TableCell>{new Date(income.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="font-medium text-foreground">{income.description || 'Untitled'}</TableCell>
-                        <TableCell>{getCategoryName(income.category_id)}</TableCell>
-                        <TableCell>{income.source || 'No source'}</TableCell>
-                        <TableCell className="text-right font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(Number(income.amount))}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{(safeIncomePage - 1) * incomeRowsPerPage + index + 1}</TableCell>
+                        <TableCell className="text-xs">{new Date(income.date).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-xs font-medium text-foreground">{income.description || 'Untitled'}</TableCell>
+                        <TableCell className="text-xs">{getCategoryName(income.category_id)}</TableCell>
+                        <TableCell className="text-xs">{income.source || 'No source'}</TableCell>
+                        <TableCell className="text-right text-xs font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(Number(income.amount))}</TableCell>
+                        <TableCell className="text-xs">
                           <div className="flex justify-end gap-1">
                             <ActionIconButton
                               label="View income details"
                               onClick={() => setSelectedIncome(income)}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3.5 w-3.5" />
                             </ActionIconButton>
                             <ActionIconButton
                               label="Edit income"
                               tone="primary"
                               onClick={() => handleEditIncome(income)}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </ActionIconButton>
                             <ActionIconButton
                               label="Delete income"
                               tone="danger"
-                              onClick={() => handleDeleteIncome(income.id)}
+                              onClick={() => setDeleteConfirmId(income.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </ActionIconButton>
                           </div>
                         </TableCell>
@@ -563,6 +565,14 @@ export default function IncomeTracker({ userId }: IncomeTrackerProps) {
           )}
         </DialogContent>
       </Dialog>
-    </FeatureShell>
+      <ConfirmDialog
+        open={deleteConfirmId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}
+        title="Delete income"
+        description="Are you sure you want to delete this income entry? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { if (deleteConfirmId !== null) handleDeleteIncome(deleteConfirmId); setDeleteConfirmId(null); }}
+      />
+    </>
   );
 }

@@ -32,13 +32,13 @@ export function CurrencyProvider({ userId, children }: CurrencyProviderProps) {
 
   const formatCurrency = useCallback((value: number, options?: Intl.NumberFormatOptions) => {
     try {
-      return new Intl.NumberFormat(undefined, {
+      return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency,
         ...options,
       }).format(Number(value || 0));
     } catch {
-      return new Intl.NumberFormat(undefined, {
+      return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: DEFAULT_CURRENCY,
         ...options,
