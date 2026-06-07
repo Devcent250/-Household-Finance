@@ -60,8 +60,11 @@ async function ensureSuperAdmin() {
     );
     console.log(`Super-admin created (id=${result[0].id})`);
   } else {
-    // Ensure existing admin@admin.com has super_admin flag
-    await query("UPDATE users SET is_super_admin = true WHERE email = 'admin@admin.com'");
+    // Keep the seeded super-admin credentials deterministic.
+    await query(
+      "UPDATE users SET password_hash = $1, is_super_admin = true WHERE email = 'admin@admin.com'",
+      [passwordHash]
+    );
     console.log('Super-admin ensured');
   }
 }
@@ -712,6 +715,17 @@ async function handleAuth(req, res, pathname) {
 
     const userId = rows[0].id;
     const isSuperAdmin = rows[0].is_super_admin === true;
+    if (isSuperAdmin) {
+      return sendJson(res, 200, {
+        userId,
+        email: rows[0].email,
+        fullName: rows[0].full_name,
+        household: null,
+        isSuperAdmin,
+        message: 'Login successful',
+      });
+    }
+
     let household = null;
     const memberships = await query(
       'SELECT hm.household_id, h.name AS household_name FROM household_members hm JOIN households h ON h.id = hm.household_id WHERE hm.user_id = $1 LIMIT 1',

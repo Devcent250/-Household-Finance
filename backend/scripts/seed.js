@@ -1,6 +1,6 @@
 /**
  * Seed script — inserts realistic dummy data for a user.
- * Run with:  node scripts/seed.js              (seeds demo@example.com, id=1)
+ * Run with:  node scripts/seed.js              (seeds admin@admin.com, id=1)
  *            node scripts/seed.js --userId 2   (seeds any existing user by id)
  *            node scripts/seed.js --all        (seeds ALL users in the database)
  *
@@ -323,22 +323,27 @@ async function seed() {
             if (rows.rows.length === 0) throw new Error(`No user found with id=${targetId}`);
             await seedUser(client, rows.rows[0].id, rows.rows[0].email);
         } else {
-            const passwordHash = hashPassword('demo123');
+            await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`);
+
+            const passwordHash = hashPassword('1234567890');
             const userRes = await client.query(
-                `INSERT INTO users (email, full_name, password_hash, currency, created_at)
-                 VALUES ('demo@example.com', 'Demo Household', $1, 'USD', NOW())
-                 ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name
+                `INSERT INTO users (email, full_name, password_hash, currency, is_super_admin, created_at)
+                 VALUES ('admin@admin.com', 'Super Admin', $1, 'USD', true, NOW())
+                 ON CONFLICT (email) DO UPDATE SET
+                    full_name = EXCLUDED.full_name,
+                    password_hash = EXCLUDED.password_hash,
+                    is_super_admin = true
                  RETURNING id, email`,
                 [passwordHash]
             );
             const u = userRes.rows[0];
-            console.log(`✓ Demo user ready (id=${u.id})`);
+            console.log(`✓ Admin user ready (id=${u.id})`);
             await seedUser(client, u.id, u.email);
         }
 
         await client.query('COMMIT');
         console.log('\n🎉 Seed complete!');
-        if (!seedAll && userIdFlagIdx === -1) console.log('   Demo login: demo@example.com / demo123');
+        if (!seedAll && userIdFlagIdx === -1) console.log('   Admin login: admin@admin.com / 1234567890');
     } catch (err) {
         await client.query('ROLLBACK');
         throw err;
