@@ -120,7 +120,9 @@ async function createCategories(hhId, userId) {
   for (const cat of EXPENSE_CATS) {
     const r = await client.query(
       `INSERT INTO categories (household_id, user_id, name, icon, color, type, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'expense', NOW()) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, 'expense', NOW())
+       ON CONFLICT (household_id, name, type) DO UPDATE SET icon = $4, color = $5
+       RETURNING id`,
       [hhId, userId, cat.name, cat.icon, cat.color]
     );
     map[`expense:${cat.name}`] = r.rows[0].id;
@@ -128,7 +130,9 @@ async function createCategories(hhId, userId) {
   for (const cat of INCOME_CATS) {
     const r = await client.query(
       `INSERT INTO categories (household_id, user_id, name, icon, color, type, created_at)
-       VALUES ($1, $2, $3, $4, $5, 'income', NOW()) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, 'income', NOW())
+       ON CONFLICT (household_id, name, type) DO UPDATE SET icon = $4, color = $5
+       RETURNING id`,
       [hhId, userId, cat.name, cat.icon, cat.color]
     );
     map[`income:${cat.name}`] = r.rows[0].id;
@@ -148,15 +152,11 @@ async function seedHousehold(name, ownerUserId, users, adminId, extraAdminIds = 
 
   await client.query(
     `INSERT INTO household_members (household_id, user_id, role_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT DO NOTHING`,
-    [hhId, adminId, roles.superRole]
-  );
-  await client.query(
-    `INSERT INTO household_members (household_id, user_id, role_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT DO NOTHING`,
     [hhId, ownerUserId, roles.adminRole]
   );
 
   for (const u of users) {
-    if (u.id === ownerUserId || u.id === adminId) continue;
+    if (u.id === ownerUserId) continue;
     const role = extraAdminIds.includes(u.id) ? roles.adminRole : roles.memberRole;
     await client.query(
       `INSERT INTO household_members (household_id, user_id, role_id, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT DO NOTHING`,
@@ -247,6 +247,12 @@ async function run() {
     // 1. Ensure schema columns that schema.sql may not have
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`);
 
+    // Fix constraint: should be unique per household, not per user
+    await client.query(`
+      ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_user_id_name_type_key;
+      ALTER TABLE categories ADD CONSTRAINT categories_household_id_name_type_key UNIQUE (household_id, name, type);
+    `).catch(() => {});
+
     // 2. Clear all data (order matters for FK constraints)
     const tables = [
       'household_role_permissions', 'household_roles', 'household_members',
@@ -289,7 +295,7 @@ async function run() {
 
     // 4. Seed households with data
     console.log(`\n── Seeding "Smith Family Home" ──`);
-    await seedHousehold('Smith Family Home', adminId, users, adminId, [users[0].id]);
+    await seedHousehold('Smith Family Home', users[0].id, users, adminId, [users[0].id]);
 
     console.log(`\n── Seeding "Ocean View Apartments" ──`);
     await seedHousehold('Ocean View Apartments', users[0].id, users, adminId);

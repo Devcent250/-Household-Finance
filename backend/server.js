@@ -420,7 +420,7 @@ async function handleMembers(req, res, url) {
        FROM household_members hm
        JOIN users u ON u.id = hm.user_id
        LEFT JOIN household_roles hr ON hr.id = hm.role_id
-       WHERE hm.household_id = $1
+       WHERE hm.household_id = $1 AND u.is_super_admin = false
        ORDER BY hm.created_at ASC`,
       [ctx.householdId]
     );
@@ -1305,7 +1305,9 @@ async function handleAdminHouseholds(req, res, url) {
   if (req.method === 'GET') {
     const rows = await query(
       `SELECT h.*, u.email AS owner_email, u.full_name AS owner_name,
-        (SELECT COUNT(*) FROM household_members WHERE household_id = h.id) AS member_count
+        (SELECT COUNT(*) FROM household_members hm
+         JOIN users mu ON mu.id = hm.user_id
+         WHERE hm.household_id = h.id AND mu.is_super_admin = false) AS member_count
        FROM households h
        JOIN users u ON u.id = h.owner_id
        ORDER BY h.created_at DESC`
@@ -1381,7 +1383,7 @@ async function handleAdminHouseholdMembers(req, res, url) {
      FROM household_members hm
      JOIN users u ON u.id = hm.user_id
      LEFT JOIN household_roles hr ON hr.id = hm.role_id
-     WHERE hm.household_id = $1
+     WHERE hm.household_id = $1 AND u.is_super_admin = false
      ORDER BY hm.created_at ASC`,
     [householdId]
   );
