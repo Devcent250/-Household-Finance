@@ -83,6 +83,7 @@ async function run() {
     const adminRoleId = adminRole.rows[0].id;
 
     const allPerms = [
+      'dashboard:view',
       'expenses:create', 'expenses:view', 'expenses:edit', 'expenses:delete',
       'income:create', 'income:view', 'income:edit', 'income:delete',
       'budgets:create', 'budgets:view', 'budgets:edit', 'budgets:delete',

@@ -8,10 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CalendarDays, CreditCard, Eye, FileText, Pencil, Plus, ReceiptText, Tags, Trash2, WalletCards } from 'lucide-react';
 import type { Expense, Category } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
-import { ActionIconButton, EmptyState, FeatureShell, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
+import { ActionIconButton, EmptyState, MetricStrip, PrimaryAction, TableControls, TablePagination, WorkspaceCard } from './dashboard-ui';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { toast } from '@/hooks/use-toast';
 
 interface ExpenseTrackerProps {
   userId: string;
@@ -33,6 +35,7 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
   const [expenseRowsPerPage, setExpenseRowsPerPage] = useState(10);
   const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [newExpense, setNewExpense] = useState({
     category_id: '',
     amount: '',
@@ -66,12 +69,8 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
       const year = currentDate.getFullYear();
 
       const [expensesRes, categoriesRes] = await Promise.all([
-        fetch(apiUrl(`/api/expenses?month=${month}&year=${year}`), {
-          headers: { 'x-user-id': userId },
-        }),
-        fetch(apiUrl('/api/categories?type=expense'), {
-          headers: { 'x-user-id': userId },
-        }),
+        apiFetch(`/api/expenses?month=${month}&year=${year}`, userId),
+        apiFetch('/api/categories?type=expense', userId),
       ]);
 
       const expensesData = await expensesRes.json();
@@ -103,17 +102,14 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpense.category_id || !newExpense.amount) {
-      alert('Please fill in required fields');
+      toast({ title: 'Missing fields', description: 'Please fill in required fields', variant: 'destructive' });
       return;
     }
 
     try {
-      const response = await fetch(apiUrl(editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses'), {
+      const response = await apiFetch(editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses', userId, {
         method: editingExpenseId ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newExpense),
       });
 
@@ -125,6 +121,9 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
             : [data.data, ...current]
         ));
         resetForm();
+      } else {
+        const err = await response.json();
+        toast({ title: 'Error', description: err.error || 'Failed to save expense', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Error saving expense:', error);
@@ -147,13 +146,11 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
 
   const handleDeleteExpense = async (id: number) => {
     try {
-      const response = await fetch(apiUrl(`/api/expenses/${id}`), {
-        method: 'DELETE',
-        headers: { 'x-user-id': userId },
-      });
+      const response = await apiFetch(`/api/expenses/${id}`, userId, { method: 'DELETE' });
 
       if (response.ok) {
         setExpenses((current) => current.filter((expense) => expense.id !== id));
+        toast({ title: 'Deleted', description: 'Expense deleted successfully' });
       }
     } catch (error) {
       console.error('Error deleting expense:', error);
@@ -204,21 +201,17 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
   }
 
   return (
-    <FeatureShell
-      title="Expense Tracker"
-      description="Record outgoing transactions, review payment methods, and keep monthly spending under control."
-      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><ReceiptText className="h-4 w-4" /> Expense workspace</span>}
-      actions={
-        <PrimaryAction
-          onClick={openAddExpenseModal}
-          size="sm"
-        >
-          <Plus className="h-4 w-4" />
-          Add Expense
-        </PrimaryAction>
-      }
-    >
-      <WorkspaceCard title="Expense Register" description="Add, edit, inspect, and remove expense entries for this month.">
+    <>
+      <WorkspaceCard
+        title="Expense Register"
+        description="Add, edit, inspect, and remove expense entries for this month."
+        action={
+          <PrimaryAction onClick={openAddExpenseModal} size="sm">
+            <Plus className="h-4 w-4" />
+            Create
+          </PrimaryAction>
+        }
+      >
         <MetricStrip label="Total Expenses This Month" value={formatCurrency(totalExpenses)} tone="text-destructive" />
           <TableControls
             searchValue={expenseSearch}
@@ -252,49 +245,51 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
           />
 
           {filteredExpenses.length === 0 ? (
-            <EmptyState title="No expenses match the current filters" description="Adjust the search or filters, or add a new expense." />
+            <EmptyState title="No expenses match" />
           ) : (
             <div className="overflow-hidden rounded-xl border border-border">
-              <Table className="min-w-[760px]">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-8 text-xs">#</TableHead>
+                    <TableHead className="text-xs">Date</TableHead>
+                    <TableHead className="text-xs">Description</TableHead>
+                    <TableHead className="text-xs">Category</TableHead>
+                    <TableHead className="text-xs">Method</TableHead>
+                    <TableHead className="text-right text-xs">Amount</TableHead>
+                    <TableHead className="text-right text-xs">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedExpenses.map((expense) => (
+                  {paginatedExpenses.map((expense, index) => (
                     <TableRow key={expense.id}>
-                      <TableCell>{new Date(expense.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="font-medium text-foreground">{expense.description || 'Untitled'}</TableCell>
-                      <TableCell>{getCategoryName(expense.category_id)}</TableCell>
-                      <TableCell>{expense.payment_method || 'No payment method'}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(Number(expense.amount))}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{(safeExpensePage - 1) * expenseRowsPerPage + index + 1}</TableCell>
+                      <TableCell className="text-xs">{new Date(expense.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-xs font-medium text-foreground">{expense.description || 'Untitled'}</TableCell>
+                      <TableCell className="text-xs">{getCategoryName(expense.category_id)}</TableCell>
+                      <TableCell className="text-xs">{expense.payment_method || ''}</TableCell>
+                      <TableCell className="text-right text-xs font-semibold">{formatCurrency(Number(expense.amount))}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
                           <ActionIconButton
                             label="View expense details"
                             onClick={() => setSelectedExpense(expense)}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-3.5 w-3.5" />
                           </ActionIconButton>
                           <ActionIconButton
                             label="Edit expense"
                             tone="primary"
                             onClick={() => handleEditExpense(expense)}
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </ActionIconButton>
                           <ActionIconButton
                             label="Delete expense"
                             tone="danger"
-                            onClick={() => handleDeleteExpense(expense.id)}
+                            onClick={() => setDeleteConfirmId(expense.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </ActionIconButton>
                         </div>
                       </TableCell>
@@ -315,38 +310,38 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
       </WorkspaceCard>
 
       <Dialog open={showForm} onOpenChange={(open) => (open ? setShowForm(true) : resetForm())}>
-        <DialogContent className="w-[calc(100vw-2rem)] border-border p-0 sm:max-w-5xl">
+        <DialogContent className="w-[calc(100vw-2rem)] border-border p-0 sm:max-w-4xl">
           <form onSubmit={handleSaveExpense}>
-            <div className="border-b border-border bg-card px-8 py-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="border-b border-border bg-card px-6 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <DialogHeader>
-                  <div className="mb-2 inline-flex w-fit items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary">
-                    <ReceiptText className="h-4 w-4" />
+                  <div className="mb-1 inline-flex w-fit items-center gap-2 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <ReceiptText className="h-3.5 w-3.5" />
                     Expense entry
                   </div>
-                  <DialogTitle className="text-2xl">
+                  <DialogTitle className="text-xl">
                     {editingExpenseId ? 'Edit expense' : 'Add expense'}
                   </DialogTitle>
-                  <DialogDescription>
+                  <DialogDescription className="text-xs">
                     Capture the transaction details that will appear in your expense register and reports.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                <div className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs">
                   <span className="text-muted-foreground">Step</span>{' '}
                   <span className="font-semibold text-foreground">{expenseFormStep} of {expenseSteps.length}</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-5 bg-[color-mix(in_oklch,var(--primary)_5%,transparent)] px-8 py-6">
-              <div className="rounded-xl border border-border bg-card px-5 py-4 shadow-sm">
+            <div className="space-y-4 bg-[color-mix(in_oklch,var(--primary)_5%,transparent)] px-6 py-4">
+              <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
                 <div className="flex items-center">
                   {expenseSteps.map((step, index) => (
                     <div key={step.id} className="flex flex-1 items-center">
                     <button
                       type="button"
                       onClick={() => setExpenseFormStep(step.id)}
-                      className={`group flex min-w-0 items-center gap-3 rounded-lg pr-3 text-left transition ${
+                      className={`group flex min-w-0 items-center gap-2 rounded-lg pr-2 text-left transition ${
                         expenseFormStep === step.id
                           ? 'text-primary'
                           : expenseFormStep > step.id
@@ -354,7 +349,7 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
                             : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold shadow-sm transition ${
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold shadow-sm transition ${
                         expenseFormStep === step.id
                           ? 'border-primary bg-primary text-primary-foreground'
                           : expenseFormStep > step.id
@@ -364,14 +359,14 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
                         {step.id}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">{step.label}</span>
-                        <span className="hidden truncate text-xs text-muted-foreground sm:block">
+                        <span className="block truncate text-xs font-semibold">{step.label}</span>
+                        <span className="hidden truncate text-[10px] text-muted-foreground sm:block">
                           {step.id === 1 ? 'Required fields' : step.id === 2 ? 'Optional context' : 'Confirm and save'}
                         </span>
                       </span>
                     </button>
                     {index < expenseSteps.length - 1 ? (
-                      <div className={`mr-4 h-0.5 flex-1 rounded-full ${expenseFormStep > step.id ? 'bg-primary' : 'bg-border'}`} />
+                      <div className={`mr-3 h-0.5 flex-1 rounded-full ${expenseFormStep > step.id ? 'bg-primary' : 'bg-border'}`} />
                     ) : null}
                   </div>
                   ))}
@@ -379,19 +374,19 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
               </div>
 
               {expenseFormStep === 1 && (
-                <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                  <div className="mb-4 flex items-center gap-2 font-medium text-foreground">
-                    <WalletCards className="h-4 w-4 text-primary" />
+                <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+                    <WalletCards className="h-3.5 w-3.5 text-primary" />
                     Transaction details
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="expense-category" className="inline-flex items-center gap-2">
-                        <Tags className="h-4 w-4 text-muted-foreground" />
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="expense-category" className="inline-flex items-center gap-1.5 text-xs">
+                        <Tags className="h-3.5 w-3.5 text-muted-foreground" />
                         Category
                       </Label>
                       <Select value={newExpense.category_id} onValueChange={(value) => setNewExpense({ ...newExpense, category_id: value })}>
-                        <SelectTrigger id="expense-category" className="h-11">
+                        <SelectTrigger id="expense-category" className="h-9 text-sm">
                           <SelectValue placeholder="Select category" />
                         </SelectTrigger>
                         <SelectContent>
@@ -585,6 +580,14 @@ export default function ExpenseTracker({ userId }: ExpenseTrackerProps) {
           )}
         </DialogContent>
       </Dialog>
-    </FeatureShell>
+      <ConfirmDialog
+        open={deleteConfirmId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}
+        title="Delete expense"
+        description="Are you sure you want to delete this expense? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => { if (deleteConfirmId !== null) handleDeleteExpense(deleteConfirmId); setDeleteConfirmId(null); }}
+      />
+    </>
   );
 }

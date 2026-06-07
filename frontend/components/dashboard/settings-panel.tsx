@@ -20,10 +20,10 @@ import {
   TriangleAlert,
   User,
 } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import currencies from '@/currency_code/Common-Currency.json';
-import { FeatureShell, PrimaryAction, WorkspaceCard } from './dashboard-ui';
+import { PrimaryAction, WorkspaceCard } from './dashboard-ui';
 
 interface SettingsPanelProps {
   userId: string;
@@ -33,7 +33,6 @@ const currencyOptions = Object.values(currencies)
   .map((c) => ({ code: c.code, name: c.name }))
   .sort((a, b) => a.code.localeCompare(b.code));
 
-// ─── SMTP defaults ────────────────────────────────────────────────────────────
 const SMTP_KEY = 'hf_smtp_config';
 const ALERT_KEY = 'hf_alert_config';
 
@@ -50,9 +49,7 @@ interface SmtpConfig {
 interface AlertConfig {
   enabled: boolean;
   sendTo: string;
-  thresholdWarning: string;   // % — yellow warning
-  thresholdCritical: string;  // % — red critical
-  digestFrequency: string;    // 'instant' | 'daily' | 'weekly'
+  digestFrequency: string;
   notifyOnOverspend: boolean;
   notifyOnGoalReached: boolean;
   notifyOnLargeExpense: boolean;
@@ -72,13 +69,11 @@ const defaultSmtp: SmtpConfig = {
 const defaultAlert: AlertConfig = {
   enabled: true,
   sendTo: '',
-  thresholdWarning: '75',
-  thresholdCritical: '90',
   digestFrequency: 'instant',
   notifyOnOverspend: true,
   notifyOnGoalReached: true,
   notifyOnLargeExpense: false,
-  largeExpenseAmount: '50000',
+  largeExpenseAmount: '1000',
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -90,11 +85,9 @@ function loadJson<T>(key: string, fallback: T): T {
   }
 }
 
-// ─── small helper components ──────────────────────────────────────────────────
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
       {children}
     </p>
   );
@@ -102,24 +95,21 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   return ok ? (
-    <Badge className="gap-1 border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 className="h-3 w-3" />
+    <Badge className="gap-1 border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] px-1.5 py-0">
+      <CheckCircle2 className="h-2.5 w-2.5" />
       {label}
     </Badge>
   ) : (
-    <Badge variant="outline" className="gap-1 text-muted-foreground">
-      <TriangleAlert className="h-3 w-3" />
+    <Badge variant="outline" className="gap-1 text-muted-foreground text-[10px] px-1.5 py-0">
+      <TriangleAlert className="h-2.5 w-2.5" />
       {label}
     </Badge>
   );
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
-
 export default function SettingsPanel({ userId }: SettingsPanelProps) {
   const { setCurrency } = useCurrency();
 
-  // Profile
   const [profile, setProfile] = useState({
     full_name: '',
     email: '',
@@ -130,19 +120,16 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
 
-  // SMTP
   const [smtp, setSmtp] = useState<SmtpConfig>(defaultSmtp);
   const [smtpSaved, setSmtpSaved] = useState(false);
   const [smtpTesting, setSmtpTesting] = useState(false);
   const [smtpTestResult, setSmtpTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  // Budget alerts
   const [alert, setAlert] = useState<AlertConfig>(defaultAlert);
   const [alertSaved, setAlertSaved] = useState(false);
 
-  // ── load on mount ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch(apiUrl('/api/profile'), { headers: { 'x-user-id': userId } })
+    apiFetch('/api/profile', userId)
       .then((r) => r.json())
       .then((data) => {
         if (data.data) {
@@ -153,7 +140,6 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
             theme: data.data.theme || 'light',
             password: '',
           });
-          // Pre-fill alert sendTo with profile email if not set
           setAlert((prev) => ({
             ...loadJson<AlertConfig>(ALERT_KEY, defaultAlert),
             sendTo: loadJson<AlertConfig>(ALERT_KEY, defaultAlert).sendTo || data.data.email || '',
@@ -165,13 +151,12 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
     setSmtp(loadJson<SmtpConfig>(SMTP_KEY, defaultSmtp));
   }, [userId]);
 
-  // ── profile save ─────────────────────────────────────────────────────────────
   const handleSaveProfile = async () => {
     setProfileSaving(true);
     try {
-      const res = await fetch(apiUrl('/api/profile'), {
+      const res = await apiFetch('/api/profile', userId, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile),
       });
       if (res.ok) {
@@ -188,7 +173,6 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
     }
   };
 
-  // ── smtp save ────────────────────────────────────────────────────────────────
   const handleSaveSmtp = () => {
     localStorage.setItem(SMTP_KEY, JSON.stringify(smtp));
     setSmtpSaved(true);
@@ -196,7 +180,6 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
     setTimeout(() => setSmtpSaved(false), 3000);
   };
 
-  // ── smtp test (simulated — real sending requires a backend endpoint) ─────────
   const handleTestSmtp = async () => {
     if (!smtp.host || !smtp.user || !smtp.fromEmail) {
       setSmtpTestResult({ ok: false, message: 'Fill in host, username, and from-email before testing.' });
@@ -204,7 +187,6 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
     }
     setSmtpTesting(true);
     setSmtpTestResult(null);
-    // Simulate a network round-trip; replace with a real POST /api/smtp/test when backend supports it
     await new Promise((r) => setTimeout(r, 1800));
     setSmtpTesting(false);
     setSmtpTestResult({
@@ -213,7 +195,6 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
     });
   };
 
-  // ── alert save ───────────────────────────────────────────────────────────────
   const handleSaveAlerts = () => {
     localStorage.setItem(ALERT_KEY, JSON.stringify(alert));
     setAlertSaved(true);
@@ -223,70 +204,65 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
   const smtpConfigured = !!(smtp.host && smtp.user && smtp.fromEmail);
 
   return (
-    <FeatureShell
-      title="Settings"
-      description="Manage your profile, email delivery, and budget alert preferences."
-      eyebrow={
-        <span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary">
-          <Settings className="h-4 w-4" /> Account preferences
-        </span>
-      }
-    >
-      {/* ── Profile ─────────────────────────────────────────────────────────── */}
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Settings className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold tracking-tight">Settings</h2>
+      </div>
+
+      {/* Profile */}
       <WorkspaceCard
         title="Profile Settings"
         description="Control your dashboard identity and display preferences."
-        action={<User className="h-5 w-5 text-muted-foreground" />}
+        action={<User className="h-4 w-4 text-muted-foreground" />}
       >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="profile-name">Full Name</Label>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Full Name</Label>
             <Input
-              id="profile-name"
+              className="h-8 text-xs"
               value={profile.full_name}
               onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))}
               placeholder="Your full name"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="profile-email">Email</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Email</Label>
             <Input
-              id="profile-email"
+              className="h-8 text-xs"
               type="email"
               value={profile.email}
               onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
               placeholder="you@example.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label>Currency</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Currency</Label>
             <Select value={profile.currency} onValueChange={(v) => setProfile((p) => ({ ...p, currency: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {currencyOptions.map((c) => (
-                  <SelectItem key={c.code} value={c.code}>{c.code} – {c.name}</SelectItem>
+                  <SelectItem key={c.code} value={c.code} className="text-xs">{c.code} – {c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Theme Preference</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Theme</Label>
             <Select value={profile.theme} onValueChange={(v) => setProfile((p) => ({ ...p, theme: v }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="light" className="text-xs">Light</SelectItem>
+                <SelectItem value="dark" className="text-xs">Dark</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="profile-password">
-              <span className="flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5" /> New Password
-              </span>
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-xs">
+              <span className="flex items-center gap-1.5"><KeyRound className="h-3 w-3" /> New Password</span>
             </Label>
             <Input
-              id="profile-password"
+              className="h-8 text-xs"
               type="password"
               value={profile.password}
               onChange={(e) => setProfile((p) => ({ ...p, password: e.target.value }))}
@@ -294,91 +270,89 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
             />
           </div>
         </div>
-        <div className="flex items-center gap-3 pt-1">
-          <PrimaryAction onClick={handleSaveProfile} disabled={profileSaving}>
-            {profileSaving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+        <div className="flex items-center gap-3 pt-2">
+          <PrimaryAction onClick={handleSaveProfile} disabled={profileSaving} className="h-8 text-xs">
+            {profileSaving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             Save Profile
           </PrimaryAction>
           {profileSaved && (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" /> Saved
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
             </span>
           )}
         </div>
       </WorkspaceCard>
 
-      {/* ── SMTP Configuration ───────────────────────────────────────────────── */}
+      {/* SMTP */}
       <WorkspaceCard
         title="SMTP Configuration"
         description="Configure outgoing email delivery for notifications and alerts."
         action={
           <div className="flex items-center gap-2">
             <StatusBadge ok={smtpConfigured} label={smtpConfigured ? 'Configured' : 'Not configured'} />
-            <Mail className="h-5 w-5 text-muted-foreground" />
+            <Mail className="h-4 w-4 text-muted-foreground" />
           </div>
         }
       >
-        {/* Server */}
         <SectionLabel>Mail Server</SectionLabel>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="smtp-host">
-              <span className="flex items-center gap-1.5"><Server className="h-3.5 w-3.5" /> SMTP Host</span>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">
+              <span className="flex items-center gap-1.5"><Server className="h-3 w-3" /> SMTP Host</span>
             </Label>
             <Input
-              id="smtp-host"
+              className="h-8 text-xs"
               value={smtp.host}
               onChange={(e) => setSmtp((s) => ({ ...s, host: e.target.value }))}
               placeholder="smtp.gmail.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="smtp-port">Port</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">Port</Label>
             <Select value={smtp.port} onValueChange={(v) => setSmtp((s) => ({ ...s, port: v, secure: v === '465' }))}>
-              <SelectTrigger id="smtp-port"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="25">25 – SMTP (plain)</SelectItem>
-                <SelectItem value="465">465 – SMTPS (SSL)</SelectItem>
-                <SelectItem value="587">587 – Submission (STARTTLS)</SelectItem>
-                <SelectItem value="2525">2525 – Alternative</SelectItem>
+                <SelectItem value="25" className="text-xs">25 – SMTP (plain)</SelectItem>
+                <SelectItem value="465" className="text-xs">465 – SMTPS (SSL)</SelectItem>
+                <SelectItem value="587" className="text-xs">587 – Submission (STARTTLS)</SelectItem>
+                <SelectItem value="2525" className="text-xs">2525 – Alternative</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
           <Switch
             id="smtp-secure"
             checked={smtp.secure}
             onCheckedChange={(v) => setSmtp((s) => ({ ...s, secure: v }))}
           />
           <div>
-            <Label htmlFor="smtp-secure" className="cursor-pointer font-medium">Use SSL/TLS</Label>
-            <p className="text-xs text-muted-foreground">Enable for port 465. Port 587 uses STARTTLS automatically.</p>
+            <Label htmlFor="smtp-secure" className="cursor-pointer text-xs font-medium">Use SSL/TLS</Label>
+            <p className="text-[10px] text-muted-foreground">Enable for port 465. Port 587 uses STARTTLS automatically.</p>
           </div>
         </div>
 
-        <Separator />
+        <Separator className="my-2" />
 
-        {/* Auth */}
         <SectionLabel>Authentication</SectionLabel>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="smtp-user">Username / Email</Label>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Username / Email</Label>
             <Input
-              id="smtp-user"
+              className="h-8 text-xs"
               type="email"
               value={smtp.user}
               onChange={(e) => setSmtp((s) => ({ ...s, user: e.target.value }))}
               placeholder="you@gmail.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="smtp-password">
-              <span className="flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> App Password</span>
+          <div className="space-y-1">
+            <Label className="text-xs">
+              <span className="flex items-center gap-1.5"><KeyRound className="h-3 w-3" /> App Password</span>
             </Label>
             <Input
-              id="smtp-password"
+              className="h-8 text-xs"
               type="password"
               value={smtp.password}
               onChange={(e) => setSmtp((s) => ({ ...s, password: e.target.value }))}
@@ -387,24 +361,23 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
           </div>
         </div>
 
-        <Separator />
+        <Separator className="my-2" />
 
-        {/* Sender identity */}
         <SectionLabel>Sender Identity</SectionLabel>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="smtp-from-name">From Name</Label>
+        <div className="grid gap-2 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">From Name</Label>
             <Input
-              id="smtp-from-name"
+              className="h-8 text-xs"
               value={smtp.fromName}
               onChange={(e) => setSmtp((s) => ({ ...s, fromName: e.target.value }))}
               placeholder="Household Finance"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="smtp-from-email">From Email</Label>
+          <div className="space-y-1">
+            <Label className="text-xs">From Email</Label>
             <Input
-              id="smtp-from-email"
+              className="h-8 text-xs"
               type="email"
               value={smtp.fromEmail}
               onChange={(e) => setSmtp((s) => ({ ...s, fromEmail: e.target.value }))}
@@ -413,58 +386,56 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
           </div>
         </div>
 
-        {/* Test result banner */}
         {smtpTestResult && (
           <div
-            className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm ${smtpTestResult.ok
+            className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${smtpTestResult.ok
                 ? 'border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                 : 'border-destructive/30 bg-destructive/10 text-destructive'
               }`}
           >
             {smtpTestResult.ok
-              ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />}
+              ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              : <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
             {smtpTestResult.message}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <PrimaryAction onClick={handleSaveSmtp}>Save SMTP</PrimaryAction>
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <PrimaryAction onClick={handleSaveSmtp} className="h-8 text-xs">Save SMTP</PrimaryAction>
           <button
             type="button"
             onClick={handleTestSmtp}
             disabled={smtpTesting}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-muted disabled:opacity-60"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium shadow-sm transition-colors hover:bg-muted disabled:opacity-60"
           >
             {smtpTesting
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <FlaskConical className="h-4 w-4" />}
-            {smtpTesting ? 'Sending…' : 'Send Test Email'}
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <FlaskConical className="h-3.5 w-3.5" />}
+            {smtpTesting ? 'Sending...' : 'Send Test Email'}
           </button>
           {smtpSaved && (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" /> Saved
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
             </span>
           )}
         </div>
       </WorkspaceCard>
 
-      {/* ── Budget Alert Settings ────────────────────────────────────────────── */}
+      {/* Budget Alert Settings */}
       <WorkspaceCard
         title="Budget Alert Settings"
         description="Define when and how you receive budget overspend and goal notifications."
         action={
           <div className="flex items-center gap-2">
             <StatusBadge ok={alert.enabled} label={alert.enabled ? 'Alerts on' : 'Alerts off'} />
-            <Bell className="h-5 w-5 text-muted-foreground" />
+            <Bell className="h-4 w-4 text-muted-foreground" />
           </div>
         }
       >
-        {/* Master toggle */}
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
           <div>
-            <p className="font-medium text-foreground">Enable Budget Alerts</p>
-            <p className="text-xs text-muted-foreground">Send email notifications when budgets approach or exceed limits.</p>
+            <p className="text-xs font-medium text-foreground">Enable Budget Alerts</p>
+            <p className="text-[10px] text-muted-foreground">Send email notifications when budgets approach or exceed limits.</p>
           </div>
           <Switch
             id="alert-enabled"
@@ -474,112 +445,40 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
         </div>
 
         <div className={alert.enabled ? '' : 'pointer-events-none opacity-50'}>
-          {/* Delivery */}
           <SectionLabel>Delivery</SectionLabel>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="alert-sendto">Send Alerts To</Label>
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-xs">Send Alerts To</Label>
               <Input
-                id="alert-sendto"
+                className="h-8 text-xs"
                 type="email"
                 value={alert.sendTo}
                 onChange={(e) => setAlert((a) => ({ ...a, sendTo: e.target.value }))}
                 placeholder="you@example.com"
               />
-              <p className="text-xs text-muted-foreground">Separate multiple addresses with a comma.</p>
+              <p className="text-[10px] text-muted-foreground">Separate multiple addresses with a comma.</p>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Notification Frequency</Label>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-xs">Notification Frequency</Label>
               <Select value={alert.digestFrequency} onValueChange={(v) => setAlert((a) => ({ ...a, digestFrequency: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="instant">Instant — send as soon as threshold is crossed</SelectItem>
-                  <SelectItem value="daily">Daily digest — one summary email per day</SelectItem>
-                  <SelectItem value="weekly">Weekly digest — one summary email per week</SelectItem>
+                  <SelectItem value="instant" className="text-xs">Instant — send as soon as threshold is crossed</SelectItem>
+                  <SelectItem value="daily" className="text-xs">Daily digest — one summary email per day</SelectItem>
+                  <SelectItem value="weekly" className="text-xs">Weekly digest — one summary email per week</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <Separator className="my-4" />
-
-          {/* Thresholds */}
-          <SectionLabel>Spending Thresholds</SectionLabel>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="alert-warning">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
-                  Warning Threshold (%)
-                </span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="alert-warning"
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={alert.thresholdWarning}
-                  onChange={(e) => setAlert((a) => ({ ...a, thresholdWarning: e.target.value }))}
-                  className="pr-8"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Yellow alert — budget is approaching the limit.</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="alert-critical">
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
-                  Critical Threshold (%)
-                </span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="alert-critical"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={alert.thresholdCritical}
-                  onChange={(e) => setAlert((a) => ({ ...a, thresholdCritical: e.target.value }))}
-                  className="pr-8"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Red alert — budget is at or over the limit.</p>
-            </div>
-          </div>
-
-          {/* Visual threshold preview */}
-          <div className="mt-2 rounded-lg border border-border bg-muted/30 p-4">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">Threshold preview</p>
-            <div className="relative h-3 overflow-hidden rounded-full bg-muted">
-              <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${Math.min(Number(alert.thresholdWarning) || 0, 100)}%` }} />
-              <div className="absolute inset-y-0 left-0 rounded-full bg-amber-400 transition-all"
-                style={{ width: `${Math.min(Number(alert.thresholdWarning) || 0, 100)}%`, opacity: 0.6 }} />
-              <div className="absolute inset-y-0 left-0 rounded-full bg-red-500 transition-all"
-                style={{ width: `${Math.min(Number(alert.thresholdCritical) || 0, 100)}%`, opacity: 0.35 }} />
-            </div>
-            <div className="mt-1.5 flex justify-between text-xs text-muted-foreground">
-              <span>0%</span>
-              <span className="text-amber-600">⚠ {alert.thresholdWarning || '–'}%</span>
-              <span className="text-red-600">🔴 {alert.thresholdCritical || '–'}%</span>
-              <span>100%</span>
-            </div>
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Event triggers */}
           <SectionLabel>Notification Triggers</SectionLabel>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-              <div className="flex items-center gap-3">
-                <ShieldAlert className="h-4 w-4 text-red-500" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-3.5 w-3.5 text-red-500" />
                 <div>
-                  <p className="text-sm font-medium">Budget overspend</p>
-                  <p className="text-xs text-muted-foreground">Alert when a category exceeds its budget limit.</p>
+                  <p className="text-xs font-medium">Budget overspend</p>
+                  <p className="text-[10px] text-muted-foreground">Alert when a category exceeds its budget limit.</p>
                 </div>
               </div>
               <Switch
@@ -588,12 +487,12 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                 <div>
-                  <p className="text-sm font-medium">Financial goal reached</p>
-                  <p className="text-xs text-muted-foreground">Alert when a savings or investment goal is completed.</p>
+                  <p className="text-xs font-medium">Financial goal reached</p>
+                  <p className="text-[10px] text-muted-foreground">Alert when a savings or investment goal is completed.</p>
                 </div>
               </div>
               <Switch
@@ -602,12 +501,12 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-              <div className="flex items-center gap-3">
-                <TriangleAlert className="h-4 w-4 text-amber-500" />
+            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+              <div className="flex items-center gap-2">
+                <TriangleAlert className="h-3.5 w-3.5 text-amber-500" />
                 <div>
-                  <p className="text-sm font-medium">Large single expense</p>
-                  <p className="text-xs text-muted-foreground">Alert when a single expense exceeds the amount below.</p>
+                  <p className="text-xs font-medium">Large single expense</p>
+                  <p className="text-[10px] text-muted-foreground">Alert when a single expense exceeds the amount below.</p>
                 </div>
               </div>
               <Switch
@@ -617,11 +516,11 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
             </div>
 
             {alert.notifyOnLargeExpense && (
-              <div className="ml-11 space-y-1.5">
-                <Label htmlFor="alert-large-amount">Large expense threshold</Label>
+              <div className="ml-9 space-y-1">
+                <Label className="text-xs">Large expense threshold</Label>
                 <div className="relative max-w-xs">
                   <Input
-                    id="alert-large-amount"
+                    className="h-8 text-xs"
                     type="number"
                     min={0}
                     value={alert.largeExpenseAmount}
@@ -629,21 +528,21 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
                     placeholder="50000"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Alert when any single expense exceeds this amount.</p>
+                <p className="text-[10px] text-muted-foreground">Alert when any single expense exceeds this amount.</p>
               </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <PrimaryAction onClick={handleSaveAlerts}>Save Alert Settings</PrimaryAction>
+          <PrimaryAction onClick={handleSaveAlerts} className="h-8 text-xs">Save Alert Settings</PrimaryAction>
           {alertSaved && (
-            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" /> Saved
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Saved
             </span>
           )}
         </div>
       </WorkspaceCard>
-    </FeatureShell>
+    </div>
   );
 }

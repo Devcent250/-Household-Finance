@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Bell } from 'lucide-react';
-import { apiUrl } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
-import { EmptyState, FeatureShell, ProgressBar, WorkspaceCard } from './dashboard-ui';
+import { EmptyState, ProgressBar, WorkspaceCard } from './dashboard-ui';
 
 interface AlertsPanelProps {
   userId: string;
@@ -23,20 +23,18 @@ export default function AlertsPanel({ userId }: AlertsPanelProps) {
   const [alerts, setAlerts] = useState<BudgetAlert[]>([]);
 
   useEffect(() => {
-    fetch(apiUrl('/api/alerts'), {
-      headers: { 'x-user-id': userId },
-    })
+    apiFetch('/api/alerts', userId)
       .then((response) => response.json())
       .then((data) => setAlerts(data.data || []))
       .catch((error) => console.error('Error fetching alerts:', error));
   }, [userId]);
 
   return (
-    <FeatureShell
-      title="Alerts"
-      description="Review active budget threshold warnings and spending risk signals."
-      eyebrow={<span className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-2.5 py-1 text-sm font-medium text-primary"><Bell className="h-4 w-4" /> Risk monitor</span>}
-    >
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Bell className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold tracking-tight">Alerts</h2>
+      </div>
       <WorkspaceCard title="Budget Alerts" description="Categories appear here when spending crosses configured thresholds.">
         {alerts.length === 0 ? (
           <EmptyState title="No active budget alerts" description="Your configured budget thresholds are currently clear." />
@@ -47,11 +45,11 @@ export default function AlertsPanel({ userId }: AlertsPanelProps) {
             const percentage = limit > 0 ? (spent / limit) * 100 : 0;
 
             return (
-              <div key={alert.id} className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4">
-                <AlertTriangle className="mt-0.5 h-5 w-5 text-destructive" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="font-medium text-foreground">{alert.category_name} budget threshold reached</div>
-                  <div className="text-sm text-muted-foreground">
+              <div key={alert.id} className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="text-xs font-medium text-foreground">{alert.category_name} budget threshold reached</div>
+                  <div className="text-[11px] text-muted-foreground">
                     {formatCurrency(spent)} of {formatCurrency(limit)} spent ({Math.round(percentage)}%).
                   </div>
                   <ProgressBar value={percentage} tone="bg-destructive" />
@@ -61,6 +59,6 @@ export default function AlertsPanel({ userId }: AlertsPanelProps) {
           })
         )}
       </WorkspaceCard>
-    </FeatureShell>
+    </div>
   );
 }

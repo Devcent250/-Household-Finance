@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu } from 'lucide-react';
+import { Menu, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import DashboardOverview from '@/components/dashboard/overview';
 import ExpenseTracker from '@/components/dashboard/expense-tracker';
@@ -35,6 +35,21 @@ const dashboardTabs = new Set([
   'roles',
 ]);
 
+const tabPermissions: Record<string, string[]> = {
+  overview: ['dashboard:view'],
+  expenses: ['expenses:view'],
+  income: ['income:view'],
+  budgets: ['budgets:view'],
+  goals: ['goals:view'],
+  analytics: ['analytics:view'],
+  categories: ['categories:manage'],
+  reports: ['reports:view'],
+  alerts: ['budgets:view'],
+  settings: ['settings:manage'],
+  users: ['members:manage'],
+  roles: ['roles:manage'],
+};
+
 const tabToPath = (tab: string) => (tab === 'overview' ? '/dashboard' : `/dashboard/${tab}`);
 
 const getTabFromPath = (pathname: string) => {
@@ -48,6 +63,8 @@ export default function Dashboard() {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(() => getTabFromPath(pathname));
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<Set<string>>(new Set());
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     // Get user ID from localStorage
@@ -62,15 +79,45 @@ export default function Dashboard() {
       return;
     }
     setUserId(storedUserId);
+    const storedPerms = localStorage.getItem('userPermissions');
+    const storedIsOwner = localStorage.getItem('isOwner');
+    if (storedPerms) {
+      setUserPermissions(new Set(JSON.parse(storedPerms)));
+      if (storedIsOwner) setIsOwner(storedIsOwner === 'true');
+    }
   }, [router]);
 
   useEffect(() => {
     setActiveTab(getTabFromPath(pathname));
   }, [pathname]);
 
+  const hasTabAccess = (tab: string) => {
+    if (isOwner) return true;
+    const required = tabPermissions[tab];
+    if (!required || required.length === 0) return true;
+    return required.some((p) => userPermissions.has(p));
+  };
+
+  const firstAccessibleTab = () => {
+    if (isOwner) return activeTab;
+    for (const tab of dashboardTabs) {
+      if (tab === 'overview') continue;
+      const required = tabPermissions[tab];
+      if (required && required.length > 0 && required.some((p) => userPermissions.has(p))) {
+        return tab;
+      }
+    }
+    return 'overview';
+  };
+
+  const nextTab = firstAccessibleTab();
+  const hasAnyAccess = isOwner || hasTabAccess(nextTab);
+  const resolvedTab = hasTabAccess(activeTab) ? activeTab : nextTab;
+
   const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    router.push(tabToPath(tab));
+    const target = hasTabAccess(tab) ? tab : (isOwner ? tab : nextTab);
+    setActiveTab(target);
+    router.push(tabToPath(target));
   };
 
   if (!userId) {
@@ -83,8 +130,20 @@ export default function Dashboard() {
     );
   }
 
+  if (!hasAnyAccess) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center max-w-md mx-auto px-4">
+          <Shield className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+          <h1 className="text-2xl font-bold text-foreground mb-2">No Access</h1>
+          <p className="text-muted-foreground">Your account has no permissions assigned. Contact your household admin to grant you access.</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderContent = () => {
-    switch (activeTab) {
+    switch (resolvedTab) {
       case 'overview':
         return <DashboardOverview userId={userId} onNavigate={handleTabChange} />;
       case 'expenses':
@@ -120,7 +179,7 @@ export default function Dashboard() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          activeTab={activeTab}
+          activeTab={resolvedTab}
           onTabChange={handleTabChange}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
@@ -129,23 +188,23 @@ export default function Dashboard() {
         {/* Main Content */}
         <div className="flex-1 min-h-0 flex flex-col">
           {/* Mobile Menu Button */}
-          <div className="md:hidden sticky top-0 z-20 bg-card border-b border-border p-4 flex items-center gap-2">
+          <div className="md:hidden sticky top-0 z-20 bg-card border-b border-border p-2 flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-foreground"
+              className="text-foreground h-8 w-8"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg font-bold text-foreground">Dashboard</h1>
+            <h1 className="text-base font-bold text-foreground">Dashboard</h1>
           </div>
 
           {/* Page Content */}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-4 lg:px-6">
               <CurrencyProvider userId={userId}>
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {renderContent()}
                 </div>
               </CurrencyProvider>

@@ -51,51 +51,50 @@ export default function Navigation({ onTabChange }: NavigationProps) {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border/70 bg-background/92 shadow-sm shadow-slate-950/5 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6">
-        <div className="flex h-14 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
+      <div className="mx-auto max-w-7xl px-2 sm:px-3 lg:px-4">
+        <div className="flex h-10 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
               <Image
                 src="/looooogo.png"
                 alt="Household Budget Master"
-                width={30}
-                height={30}
-                className="h-7 w-7 object-contain"
+                width={20}
+                height={20}
+                className="h-5 w-5 object-contain"
               />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">Household Finance</h1>
-              <p className="hidden truncate text-[11px] leading-4 text-muted-foreground sm:block">Dashboard workspace</p>
+              <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">Household Finance</h1>
             </div>
           </div>
 
-          <div className="hidden min-w-0 items-center justify-end gap-1.5 md:flex">
+          <div className="hidden min-w-0 items-center justify-end gap-1 md:flex">
             {householdName && (
-              <div className="mr-1 flex min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 shadow-sm">
-                <span className="truncate text-sm font-semibold text-foreground" style={{ textDecoration: 'underline double' }}>{householdName}</span>
+              <div className="mr-1 flex min-w-0 max-w-[160px] items-center gap-1 rounded-lg border border-border bg-card/80 px-2 py-1 shadow-sm">
+                <span className="truncate text-xs font-semibold text-foreground" style={{ textDecoration: 'underline double' }}>{householdName}</span>
               </div>
             )}
             {userEmail && (
-              <div className="mr-1 flex min-w-0 max-w-[210px] items-center gap-2 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 shadow-sm xl:max-w-[250px]">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <UserRound className="h-4 w-4" />
+              <div className="mr-1 flex min-w-0 max-w-[180px] items-center gap-1.5 rounded-lg border border-border bg-card/80 px-2 py-1 shadow-sm xl:max-w-[220px]">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <UserRound className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold leading-4 text-foreground">{displayName}</p>
-                  <p className="hidden truncate text-[11px] leading-4 text-muted-foreground xl:block">{userEmail}</p>
+                  <p className="truncate text-xs font-semibold leading-4 text-foreground">{displayName}</p>
+                  <p className="hidden truncate text-[10px] leading-3 text-muted-foreground xl:block">{userEmail}</p>
                 </div>
               </div>
             )}
             <LanguageSelector />
             <ThemeToggle />
-            <Button variant="outline" size="sm" className="h-9 border-border bg-card/80 px-2.5 shadow-sm xl:px-3" onClick={() => handleTabChange('settings')}>
-              <UserRound className="h-4 w-4" />
+            <Button variant="outline" size="sm" className="h-7 border-border bg-card/80 px-2 shadow-sm text-xs" onClick={() => handleTabChange('settings')}>
+              <UserRound className="h-3.5 w-3.5" />
               <span className="hidden xl:inline">Profile</span>
             </Button>
             <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
               <AlertDialogTrigger asChild>
-                <Button size="sm" className="h-9 bg-primary px-2.5 text-primary-foreground shadow-sm shadow-primary/20 hover:bg-primary/90 xl:px-3">
-                  <LogOut className="h-4 w-4" />
+                <Button size="sm" className="h-7 bg-primary px-2 text-primary-foreground shadow-sm shadow-primary/20 hover:bg-primary/90 text-xs">
+                  <LogOut className="h-3.5 w-3.5" />
                   <span className="hidden lg:inline">Sign Out</span>
                 </Button>
               </AlertDialogTrigger>
@@ -117,20 +116,20 @@ export default function Navigation({ onTabChange }: NavigationProps) {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground shadow-sm md:hidden"
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-foreground shadow-sm md:hidden"
             aria-label="Toggle navigation menu"
           >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="border-t border-border/70 py-4 md:hidden">
-            <div className="space-y-3">
+          <div className="border-t border-border/70 py-3 md:hidden">
+            <div className="space-y-2">
               {userEmail && (
-                <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
                     <UserRound className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -142,18 +141,18 @@ export default function Navigation({ onTabChange }: NavigationProps) {
                   )}
                 </div>
               )}
-              <div className="space-y-2 border-t border-border/70 pt-3">
+              <div className="space-y-2 border-t border-border/70 pt-2">
                 <div className="flex items-center gap-2">
                   <LanguageSelector />
                   <ThemeToggle />
                 </div>
-                <Button variant="outline" className="w-full border-border bg-card" onClick={() => handleTabChange('settings')}>
+                <Button variant="outline" className="w-full border-border bg-card text-sm" onClick={() => handleTabChange('settings')}>
                   <UserRound className="h-4 w-4" />
                   Profile
                 </Button>
                 <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
                   <AlertDialogTrigger asChild>
-                    <Button className="w-full bg-primary text-primary-foreground">
+                    <Button className="w-full bg-primary text-primary-foreground text-sm">
                       <LogOut className="h-4 w-4" />
                       <span>Sign Out</span>
                     </Button>

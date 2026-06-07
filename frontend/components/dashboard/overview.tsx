@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Budget, Category, Expense, FinancialGoal, Income } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 import { useCurrency } from '@/components/currency-provider';
 import * as XLSX from 'xlsx';
 import {
@@ -136,21 +136,11 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         const year = currentDate.getFullYear();
 
         const [expensesRes, incomeRes, budgetsRes, goalsRes, categoriesRes] = await Promise.all([
-          fetch(apiUrl(`/api/expenses?month=${month}&year=${year}`), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl(`/api/income?month=${month}&year=${year}`), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/budgets'), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/goals'), {
-            headers: { 'x-user-id': userId },
-          }),
-          fetch(apiUrl('/api/categories'), {
-            headers: { 'x-user-id': userId },
-          }),
+          apiFetch(`/api/expenses?month=${month}&year=${year}`, userId),
+          apiFetch(`/api/income?month=${month}&year=${year}`, userId),
+          apiFetch('/api/budgets', userId),
+          apiFetch('/api/goals', userId),
+          apiFetch('/api/categories', userId),
         ]);
 
         const [expensesData, incomeData, budgetsData, goalsData, categoriesData] = await Promise.all([
@@ -488,44 +478,41 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
   ];
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+    <div className="space-y-3">
+      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="bg-primary/10 text-primary hover:bg-primary/10">
-                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                Finance command center
+                <Sparkles className="mr-1 h-3 w-3" />
+                Overview
               </Badge>
-              <Badge variant="outline" className="border-border text-muted-foreground">
+              <Badge variant="outline" className="border-border text-muted-foreground text-[10px]">
                 {periodLabel}
               </Badge>
             </div>
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Dashboard</h2>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Monitor cash flow, budgets, savings, and household goals from one focused workspace.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => onNavigate?.('expenses')} className="h-9">
-                <PlusCircle className="h-4 w-4" />
-                Add Expense
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onNavigate?.('income')} className="h-9 border-border bg-background/70">
-                <TrendingUp className="h-4 w-4" />
-                Add Income
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => onNavigate?.('reports')} className="h-9 border-border bg-background/70">
-                <ReceiptText className="h-4 w-4" />
-                Reports
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Dashboard</h2>
+              <div className="flex flex-wrap gap-1.5">
+                <Button size="sm" onClick={() => onNavigate?.('expenses')} className="h-7 text-xs px-2">
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  Add Expense
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onNavigate?.('income')} className="h-7 border-border bg-background/70 text-xs px-2">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Add Income
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onNavigate?.('reports')} className="h-7 border-border bg-background/70 text-xs px-2">
+                  <ReceiptText className="h-3.5 w-3.5" />
+                  Reports
+                </Button>
+              </div>
             </div>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[500px]">
             <Select value={preset} onValueChange={setPreset}>
-              <SelectTrigger className="h-10 border-border bg-background shadow-sm">
+              <SelectTrigger className="h-8 border-border bg-background shadow-sm text-xs">
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
               <SelectContent className="border-border bg-card shadow-xl">
@@ -575,28 +562,28 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
 
           return (
-            <Card key={card.title} className="overflow-hidden border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between gap-4">
+            <Card key={card.title} className="overflow-hidden border-border bg-card shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                    <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                    <div className="mt-1 truncate text-lg font-semibold tracking-tight text-foreground">
                       {formatCurrency(card.value)}
                     </div>
                   </div>
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${card.tone}`}>
-                    <Icon className="h-5 w-5" />
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${card.tone}`}>
+                    <Icon className="h-4 w-4" />
                   </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/70 pt-3">
-                  <p className="truncate text-xs text-muted-foreground">{card.helper}</p>
-                  <span className="h-1.5 w-12 rounded-full bg-primary/20">
-                    <span className="block h-1.5 rounded-full bg-primary" style={{ width: `${card.progress}%` }} />
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/70 pt-1.5">
+                  <p className="truncate text-[10px] text-muted-foreground">{card.helper}</p>
+                  <span className="h-1 w-10 rounded-full bg-primary/20">
+                    <span className="block h-1 rounded-full bg-primary" style={{ width: `${card.progress}%` }} />
                   </span>
                 </div>
               </CardContent>
@@ -605,61 +592,61 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         })}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+      <section className="grid gap-2 xl:grid-cols-[1.25fr_0.75fr]">
         <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-2">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <CardTitle className="text-xl">Cash Flow Health</CardTitle>
-                <p className="text-sm text-muted-foreground">Income, expenses, savings, and risk signals for the selected period.</p>
+                <CardTitle className="text-base">Cash Flow Health</CardTitle>
+                <p className="text-xs text-muted-foreground">Income, expenses, savings, and risk signals for the selected period.</p>
               </div>
               <Badge variant="outline" className="border-border">
                 Score {healthScore}/100
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-5 lg:grid-cols-[220px_1fr]">
+          <CardContent className="grid gap-3 lg:grid-cols-[180px_1fr]">
             <div className="flex items-center justify-center">
               <div
-                className="relative flex h-48 w-48 items-center justify-center rounded-full"
+                className="relative flex h-36 w-36 items-center justify-center rounded-full"
                 style={{
                   background: `conic-gradient(var(--primary) 0% ${healthScore}%, color-mix(in oklch, var(--muted) 80%, transparent) ${healthScore}% 100%)`,
                 }}
               >
-                <div className="flex h-32 w-32 items-center justify-center rounded-full border border-border bg-background text-center shadow-inner">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full border border-border bg-background text-center shadow-inner">
                   <div>
-                    <ShieldCheck className="mx-auto mb-1 h-5 w-5 text-primary" />
-                    <div className="text-3xl font-semibold text-foreground">{healthScore}</div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Health</div>
+                    <ShieldCheck className="mx-auto mb-0.5 h-4 w-4 text-primary" />
+                    <div className="text-2xl font-semibold text-foreground">{healthScore}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Health</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-border bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">Savings rate</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{Math.round(savingsRate)}%</p>
+            <div className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-border bg-background/60 p-2">
+                  <p className="text-[10px] text-muted-foreground">Savings rate</p>
+                  <p className="mt-0.5 text-base font-semibold text-foreground">{Math.round(savingsRate)}%</p>
                 </div>
-                <div className="rounded-xl border border-border bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">Expense ratio</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{Math.round(expenseRate)}%</p>
+                <div className="rounded-xl border border-border bg-background/60 p-2">
+                  <p className="text-[10px] text-muted-foreground">Expense ratio</p>
+                  <p className="mt-0.5 text-base font-semibold text-foreground">{Math.round(expenseRate)}%</p>
                 </div>
-                <div className="rounded-xl border border-border bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">Budget alerts</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{budgetAlerts}</p>
+                <div className="rounded-xl border border-border bg-background/60 p-2">
+                  <p className="text-[10px] text-muted-foreground">Budget alerts</p>
+                  <p className="mt-0.5 text-base font-semibold text-foreground">{budgetAlerts}</p>
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div>
-                  <div className="mb-1.5 flex justify-between text-sm">
+                  <div className="mb-1 flex justify-between text-xs">
                     <span className="text-muted-foreground">Income coverage</span>
                     <span className="font-medium text-foreground">{formatCurrency(totalIncome)}</span>
                   </div>
-                  <div className="h-2.5 rounded-full bg-muted">
-                    <div className="h-2.5 rounded-full bg-emerald-600" style={{ width: '100%' }} />
+                  <div className="h-2 rounded-full bg-muted">
+                    <div className="h-2 rounded-full bg-emerald-600" style={{ width: '100%' }} />
                   </div>
                 </div>
                 <div>
@@ -762,38 +749,38 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </Card>
 
         <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
             <div>
-              <CardTitle className="text-xl">Recent Transactions</CardTitle>
-              <p className="text-sm text-muted-foreground">Latest income and expense activity.</p>
+              <CardTitle className="text-base">Recent Transactions</CardTitle>
+              <p className="text-xs text-muted-foreground">Latest income and expense activity.</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => onNavigate?.('reports')} className="text-primary hover:text-primary">
+            <Button variant="ghost" size="sm" onClick={() => onNavigate?.('reports')} className="text-primary hover:text-primary h-6 text-xs px-1">
               View all
             </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {recentTransactions.length === 0 ? (
               <EmptyState>Add income or expenses to populate the activity feed.</EmptyState>
             ) : (
               recentTransactions.map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/60 px-4 py-3"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border bg-background/60 px-3 py-2"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className={`rounded-lg p-2 ${tx.type === 'Income' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-primary/10 text-primary'}`}>
-                      {tx.type === 'Income' ? <ArrowRight className="h-4 w-4" /> : <ReceiptText className="h-4 w-4" />}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className={`rounded-lg p-1.5 ${tx.type === 'Income' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-primary/10 text-primary'}`}>
+                      {tx.type === 'Income' ? <ArrowRight className="h-3.5 w-3.5" /> : <ReceiptText className="h-3.5 w-3.5" />}
                     </div>
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-foreground">{tx.title}</div>
-                      <div className="truncate text-sm text-muted-foreground">{tx.subtitle}</div>
+                      <div className="truncate text-xs font-medium text-foreground">{tx.title}</div>
+                      <div className="truncate text-[10px] text-muted-foreground">{tx.subtitle}</div>
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className={`font-semibold ${tx.amount >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}`}>
+                    <div className={`text-xs font-semibold ${tx.amount >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'}`}>
                       {tx.amount >= 0 ? '+' : '-'}{formatCurrency(Math.abs(tx.amount))}
                     </div>
-                    <div className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleDateString()}</div>
+                    <div className="text-[10px] text-muted-foreground">{new Date(tx.date).toLocaleDateString()}</div>
                   </div>
                 </div>
               ))
@@ -802,15 +789,15 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </Card>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid gap-2 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-xl">Spending Breakdown</CardTitle>
-            <p className="text-sm text-muted-foreground">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Spending Breakdown</CardTitle>
+            <p className="text-xs text-muted-foreground">
               {topCategory ? `${topCategory.name} is currently the highest spend category.` : 'Top spending categories for the selected period.'}
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-2">
             {categorySpending.length === 0 ? (
               <EmptyState>No spending data yet.</EmptyState>
             ) : (
@@ -833,27 +820,27 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </Card>
 
         <Card className="border-border bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
             <div>
-              <CardTitle className="text-xl">Financial Goals</CardTitle>
-              <p className="text-sm text-muted-foreground">Progress toward household savings targets.</p>
+              <CardTitle className="text-base">Financial Goals</CardTitle>
+              <p className="text-xs text-muted-foreground">Progress toward household savings targets.</p>
             </div>
-            <Badge variant="outline" className="border-border">{goalProgress.length} active</Badge>
+            <Badge variant="outline" className="border-border text-[10px]">{goalProgress.length} active</Badge>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-2">
             {goalProgress.length === 0 ? (
               <EmptyState>No financial goals set yet.</EmptyState>
             ) : (
               goalProgress.map((goal) => (
-                <div key={goal.id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
+                <div key={goal.id} className="rounded-xl border border-border bg-background/60 p-3">
+                  <div className="mb-2 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-medium text-foreground">{goal.name}</div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="truncate text-sm font-medium text-foreground">{goal.name}</div>
+                      <div className="text-xs text-muted-foreground">
                         {goal.category} - {goal.priority} priority
                       </div>
                     </div>
-                    <Target className="h-5 w-5 shrink-0 text-primary" />
+                    <Target className="h-4 w-4 shrink-0 text-primary" />
                   </div>
                   <ProgressRow
                     label={`${formatCurrency(goal.current_amount)} of ${formatCurrency(goal.target_amount)}`}
@@ -868,34 +855,29 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </Card>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border p-5">
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-xl">Recent Activities</CardTitle>
-                <Badge variant="outline" className="border-border">
-                  {filteredActivityRows.length} rows
-                </Badge>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Search, filter, export, and customize the activity table fields.
-              </p>
+      <section className="rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border p-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base">Recent Activities</CardTitle>
+              <Badge variant="outline" className="border-border text-[10px]">
+                {filteredActivityRows.length} rows
+              </Badge>
             </div>
 
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-              <div className="relative min-w-[240px] lg:w-[300px]">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="relative min-w-[200px] lg:w-[260px]">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={activitySearch}
                   onChange={(event) => setActivitySearch(event.target.value)}
                   placeholder="Search activities..."
-                  className="h-10 border-border bg-background pl-9 shadow-sm"
+                  className="h-8 border-border bg-background pl-8 shadow-sm text-xs"
                 />
               </div>
 
               <Select value={activityType} onValueChange={setActivityType}>
-                <SelectTrigger className="h-10 w-full border-border bg-background shadow-sm lg:w-[190px]">
+                <SelectTrigger className="h-8 w-full border-border bg-background shadow-sm lg:w-[150px] text-xs">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -906,7 +888,7 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
               </Select>
 
               <Select value={activityStatus} onValueChange={setActivityStatus}>
-                <SelectTrigger className="h-10 w-full border-border bg-background shadow-sm lg:w-[190px]">
+                <SelectTrigger className="h-8 w-full border-border bg-background shadow-sm lg:w-[150px] text-xs">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -917,7 +899,7 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
 
               <Button
                 variant="outline"
-                className="h-10 border-border bg-background shadow-sm"
+                className="h-8 border-border bg-background shadow-sm text-xs px-2"
                 onClick={() => {
                   setActivitySearch('');
                   setActivityType('all');
@@ -929,8 +911,8 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="h-10 border-border bg-background shadow-sm">
-                    <Download className="h-4 w-4" />
+                  <Button variant="outline" className="h-8 border-border bg-background shadow-sm text-xs px-2">
+                    <Download className="h-3.5 w-3.5" />
                     Export
                   </Button>
                 </AlertDialogTrigger>
@@ -952,8 +934,8 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-10 border-border bg-background shadow-sm">
-                    <SlidersHorizontal className="h-4 w-4" />
+                  <Button variant="outline" className="h-8 border-border bg-background shadow-sm text-xs px-2">
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
                     Columns
                   </Button>
                 </DropdownMenuTrigger>
@@ -981,10 +963,10 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-sm [&_td]:border [&_td]:border-border [&_th]:border [&_th]:border-border [&_thead_th]:border-primary-foreground/30">
+          <table className="w-full min-w-[900px] border-collapse text-xs [&_td]:border [&_td]:border-border [&_th]:border [&_th]:border-border [&_thead_th]:border-primary-foreground/30">
             <thead>
               <tr className="bg-primary text-primary-foreground">
-                <th className="w-12 px-4 py-3 text-left">
+                <th className="w-10 px-2 py-2 text-left">
                   <Checkbox
                     checked={allPageRowsSelected}
                     onCheckedChange={(checked) => togglePageSelection(Boolean(checked))}
@@ -992,51 +974,51 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
                     className="border-primary-foreground/70 data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary"
                   />
                 </th>
-                <th className="w-16 px-4 py-3 text-left font-semibold">S/N</th>
+                <th className="w-12 px-2 py-2 text-left font-semibold">S/N</th>
                 {activityColumns.map((column) =>
                   visibleActivityColumns[column.key] ? (
-                    <th key={column.key} className="whitespace-nowrap px-4 py-3 text-left font-semibold">
+                    <th key={column.key} className="whitespace-nowrap px-2 py-2 text-left font-semibold">
                       {column.label}
                     </th>
                   ) : null
                 )}
-                <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Action</th>
+                <th className="whitespace-nowrap px-2 py-2 text-right font-semibold">Action</th>
               </tr>
             </thead>
             <tbody>
               {paginatedActivityRows.length === 0 ? (
                 <tr>
-                  <td colSpan={activityColumns.filter((column) => visibleActivityColumns[column.key]).length + 3} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={activityColumns.filter((column) => visibleActivityColumns[column.key]).length + 3} className="px-4 py-6 text-center text-muted-foreground">
                     No activities match the current filters.
                   </td>
                 </tr>
               ) : (
                 paginatedActivityRows.map((row, index) => (
                   <tr key={row.id} className="border-b border-border bg-card transition hover:bg-muted/40">
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-1.5">
                       <Checkbox
                         checked={selectedActivityIds.includes(row.id)}
                         onCheckedChange={(checked) => toggleRowSelection(row.id, Boolean(checked))}
                         aria-label={`Select ${row.code}`}
                       />
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="px-2 py-1.5 text-muted-foreground">
                       {(safeActivityPage - 1) * activityRowsPerPage + index + 1}
                     </td>
-                    {visibleActivityColumns.code && <td className="px-4 py-3 font-medium text-foreground">{row.code}</td>}
+                    {visibleActivityColumns.code && <td className="px-2 py-1.5 font-medium text-foreground">{row.code}</td>}
                     {visibleActivityColumns.date && (
-                      <td className="whitespace-nowrap px-4 py-3 text-foreground">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-foreground">
                         {format(new Date(row.date), 'MMM dd, yyyy')}
                       </td>
                     )}
                     {visibleActivityColumns.type && (
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <Badge className={row.type === 'Income' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-primary/10 text-primary hover:bg-primary/10'}>
                           {row.type}
                         </Badge>
                       </td>
                     )}
-                    {visibleActivityColumns.title && <td className="max-w-[260px] truncate px-4 py-3 text-foreground">{row.title}</td>}
+                    {visibleActivityColumns.title && <td className="max-w-[200px] truncate px-2 py-1.5 text-foreground">{row.title}</td>}
                     {visibleActivityColumns.category && <td className="px-4 py-3 text-muted-foreground">{row.category}</td>}
                     {visibleActivityColumns.account && <td className="px-4 py-3 text-muted-foreground">{row.account}</td>}
                     {visibleActivityColumns.amount && (
@@ -1045,18 +1027,18 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
                       </td>
                     )}
                     {visibleActivityColumns.status && (
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-2 whitespace-nowrap text-emerald-700 dark:text-emerald-300">
-                          <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                          {row.status}
+                      <td className="px-2 py-1.5">
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-emerald-700 dark:text-emerald-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                          <span className="text-[10px]">{row.status}</span>
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-2 py-1.5 text-right">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-primary hover:text-primary"
+                        className="text-primary hover:text-primary h-6 text-[10px] px-1"
                         onClick={() => onNavigate?.(row.type === 'Income' ? 'income' : 'expenses')}
                       >
                         View
@@ -1069,15 +1051,15 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-2 border-t border-border px-2 py-2 text-xs text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
           <div>
             {selectedActivityIds.length} of {filteredActivityRows.length} selected
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
               <span>Rows / page</span>
               <Select value={String(activityRowsPerPage)} onValueChange={(value) => setActivityRowsPerPage(Number(value))}>
-                <SelectTrigger className="h-9 w-[110px] border-border bg-background">
+                <SelectTrigger className="h-7 w-[90px] border-border bg-background text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1092,18 +1074,18 @@ export default function DashboardOverview({ userId, onNavigate }: OverviewProps)
             <span>
               Page {safeActivityPage} / {activityTotalPages}
             </span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === 1} onClick={() => setActivityPage(1)}>
-                <ChevronsLeft className="h-4 w-4" />
+            <div className="flex items-center gap-0.5">
+              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === 1} onClick={() => setActivityPage(1)} className="h-6 w-6">
+                <ChevronsLeft className="h-3 w-3" />
               </Button>
-              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === 1} onClick={() => setActivityPage((page) => Math.max(1, page - 1))}>
-                <ChevronLeft className="h-4 w-4" />
+              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === 1} onClick={() => setActivityPage((page) => Math.max(1, page - 1))} className="h-6 w-6">
+                <ChevronLeft className="h-3 w-3" />
               </Button>
-              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === activityTotalPages} onClick={() => setActivityPage((page) => Math.min(activityTotalPages, page + 1))}>
-                <ChevronRight className="h-4 w-4" />
+              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === activityTotalPages} onClick={() => setActivityPage((page) => Math.min(activityTotalPages, page + 1))} className="h-6 w-6">
+                <ChevronRight className="h-3 w-3" />
               </Button>
-              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === activityTotalPages} onClick={() => setActivityPage(activityTotalPages)}>
-                <ChevronsRight className="h-4 w-4" />
+              <Button variant="outline" size="icon-sm" disabled={safeActivityPage === activityTotalPages} onClick={() => setActivityPage(activityTotalPages)} className="h-6 w-6">
+                <ChevronsRight className="h-3 w-3" />
               </Button>
             </div>
           </div>
@@ -1163,13 +1145,13 @@ function ProgressRow({
   color: string;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 text-sm">
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3 text-xs">
         <span className="truncate font-medium text-foreground">{label}</span>
         <span className="shrink-0 text-muted-foreground">{value}</span>
       </div>
-      <div className="h-2.5 rounded-full bg-muted">
-        <div className={`h-2.5 rounded-full ${color}`} style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }} />
+      <div className="h-1.5 rounded-full bg-muted">
+        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${Math.min(Math.max(progress, 0), 100)}%` }} />
       </div>
     </div>
   );
