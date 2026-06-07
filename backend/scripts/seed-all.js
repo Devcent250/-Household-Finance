@@ -242,26 +242,25 @@ async function seedHousehold(name, ownerUserId, users, adminId, extraAdminIds = 
 async function run() {
   await client.connect();
   try {
-    await client.query('BEGIN');
-
-    // 1. Ensure schema columns that schema.sql may not have
+    // Pre-transaction schema fixes (must run outside BEGIN in case they fail)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN DEFAULT false`);
 
-    // Fix constraint: should be unique per household, not per user
-    await client.query(`
-      ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_user_id_name_type_key;
-      ALTER TABLE categories ADD CONSTRAINT categories_household_id_name_type_key UNIQUE (household_id, name, type);
-    `).catch(() => {});
-
-    // 2. Clear all data (order matters for FK constraints)
-    const tables = [
+    // Delete data before altering constraints (old data may have duplicates)
+    const allTables = [
       'household_role_permissions', 'household_roles', 'household_members',
       'financial_goals', 'budgets', 'income', 'expenses',
       'categories', 'transactions_history', 'households', 'users',
     ];
-    for (const t of tables) {
+    for (const t of allTables) {
       await client.query(`DELETE FROM ${t}`);
     }
+
+    // Now fix constraint safely (no data to conflict)
+    await client.query(`ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_user_id_name_type_key`);
+    await client.query(`ALTER TABLE categories ADD CONSTRAINT categories_household_id_name_type_key UNIQUE (household_id, name, type)`)
+      .catch(() => {});
+
+    await client.query('BEGIN');
     console.log('✓ All tables cleared');
 
     // 2. Create super admin
