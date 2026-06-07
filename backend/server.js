@@ -273,6 +273,20 @@ async function ensureDefaultRoles(householdId) {
   const existing = await query('SELECT id FROM household_roles WHERE household_id = $1 LIMIT 1', [householdId]);
   if (existing.length > 0) return;
 
+  const superRole = await query(
+    `INSERT INTO household_roles (household_id, name, description)
+     VALUES ($1, 'Superadmin', 'Full access to all household features')
+     RETURNING id`,
+    [householdId]
+  );
+
+  for (const pk of ALL_PERMISSIONS) {
+    await query(
+      `INSERT INTO household_role_permissions (role_id, permission_key) VALUES ($1, $2)`,
+      [superRole[0].id, pk]
+    );
+  }
+
   const adminRole = await query(
     `INSERT INTO household_roles (household_id, name, description)
      VALUES ($1, 'Admin', 'Full access to all household features')
@@ -309,7 +323,7 @@ async function ensureDefaultRoles(householdId) {
     );
   }
 
-  return { adminRoleId: adminRole[0].id, memberRoleId: memberRole[0].id };
+  return { superRoleId: superRole[0].id, adminRoleId: adminRole[0].id, memberRoleId: memberRole[0].id };
 }
 
 // ─── Household handlers ───────────────────────────────────────────────
@@ -345,10 +359,14 @@ async function handleHouseholds(req, res) {
     const householdId = rows[0].id;
     const roles = await ensureDefaultRoles(householdId);
 
+    // Super admin gets Superadmin role, others get Admin
+    const isSuper = await isSuperAdmin(userId);
+    const roleId = isSuper ? roles.superRoleId : roles.adminRoleId;
+
     await query(
       `INSERT INTO household_members (household_id, user_id, role_id)
        VALUES ($1, $2, $3)`,
-      [householdId, userId, roles.adminRoleId]
+      [householdId, userId, roleId]
     );
 
     return sendJson(res, 201, { success: true, data: rows[0], message: 'Household created' });

@@ -101,12 +101,16 @@ export default function LandingPage() {
       localStorage.setItem('userName', data.fullName || formData.name || '');
       if (data.permissions) localStorage.setItem('userPermissions', JSON.stringify(data.permissions));
       if (data.isOwner !== undefined) localStorage.setItem('isOwner', String(data.isOwner));
-      if (data.household) {
+      if (data.isSuperAdmin) {
+        if (data.household) {
+          localStorage.setItem('householdId', String(data.household.id));
+          localStorage.setItem('householdName', data.household.name);
+        }
+        window.location.href = '/setup';
+      } else if (data.household) {
         localStorage.setItem('householdId', String(data.household.id));
         localStorage.setItem('householdName', data.household.name);
         window.location.href = '/dashboard';
-      } else if (data.isSuperAdmin) {
-        window.location.href = '/setup';
       } else {
         window.location.href = '/pending';
       }
