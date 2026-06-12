@@ -86,37 +86,22 @@ export default function LandingPage() {
         return;
       }
 
-      if (!isLogin) {
-        localStorage.setItem('userId', data.userId);
-        localStorage.setItem('userEmail', data.email);
-        localStorage.setItem('userName', data.fullName || formData.name || '');
-        if (data.permissions) localStorage.setItem('userPermissions', JSON.stringify(data.permissions));
-        if (data.isOwner !== undefined) localStorage.setItem('isOwner', String(data.isOwner));
-        if (data.household) {
-          localStorage.setItem('householdId', String(data.household.id));
-          localStorage.setItem('householdName', data.household.name);
-        }
-        window.location.href = '/dashboard';
-        return;
-      }
-
       localStorage.setItem('userId', data.userId);
       localStorage.setItem('userEmail', data.email);
       localStorage.setItem('userName', data.fullName || formData.name || '');
       if (data.permissions) localStorage.setItem('userPermissions', JSON.stringify(data.permissions));
       if (data.isOwner !== undefined) localStorage.setItem('isOwner', String(data.isOwner));
-      if (data.isSuperAdmin) {
-        if (data.household) {
-          localStorage.setItem('householdId', String(data.household.id));
-          localStorage.setItem('householdName', data.household.name);
-        }
-        window.location.href = '/setup';
-      } else if (data.household) {
+      if (data.household) {
         localStorage.setItem('householdId', String(data.household.id));
         localStorage.setItem('householdName', data.household.name);
-        window.location.href = '/dashboard';
+      }
+
+      if (data.isSuperAdmin && !data.household) {
+        router.push('/setup');
+      } else if (data.household) {
+        router.push('/dashboard');
       } else {
-        window.location.href = '/pending';
+        router.push('/pending');
       }
     } catch (err) {
       setAuthSuccess(null);

@@ -1,24 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import DashboardOverview from '@/components/dashboard/overview';
-import ExpenseTracker from '@/components/dashboard/expense-tracker';
-import BudgetManager from '@/components/dashboard/budget-manager';
-import IncomeTracker from '@/components/dashboard/income-tracker';
-import FinancialGoals from '@/components/dashboard/financial-goals';
-import Analytics from '@/components/dashboard/analytics';
-import CategoriesPanel from '@/components/dashboard/categories-panel';
-import ReportsPanel from '@/components/dashboard/reports-panel';
-import AlertsPanel from '@/components/dashboard/alerts-panel';
-import SettingsPanel from '@/components/dashboard/settings-panel';
-import UsersPanel from '@/components/dashboard/users-panel';
-import RolesPanel from '@/components/dashboard/roles-panel';
+import { CurrencyProvider } from '@/components/currency-provider';
 import Navigation from '@/components/navigation';
 import Sidebar from '@/components/sidebar';
-import { CurrencyProvider } from '@/components/currency-provider';
+
+const DashboardOverview = dynamic(() => import('@/components/dashboard/overview'), { ssr: false });
+const ExpenseTracker = dynamic(() => import('@/components/dashboard/expense-tracker'), { ssr: false });
+const BudgetManager = dynamic(() => import('@/components/dashboard/budget-manager'), { ssr: false });
+const IncomeTracker = dynamic(() => import('@/components/dashboard/income-tracker'), { ssr: false });
+const FinancialGoals = dynamic(() => import('@/components/dashboard/financial-goals'), { ssr: false });
+const Analytics = dynamic(() => import('@/components/dashboard/analytics'), { ssr: false });
+const CategoriesPanel = dynamic(() => import('@/components/dashboard/categories-panel'), { ssr: false });
+const ReportsPanel = dynamic(() => import('@/components/dashboard/reports-panel'), { ssr: false });
+const AlertsPanel = dynamic(() => import('@/components/dashboard/alerts-panel'), { ssr: false });
+const SettingsPanel = dynamic(() => import('@/components/dashboard/settings-panel'), { ssr: false });
+const UsersPanel = dynamic(() => import('@/components/dashboard/users-panel'), { ssr: false });
+const RolesPanel = dynamic(() => import('@/components/dashboard/roles-panel'), { ssr: false });
 
 const dashboardTabs = new Set([
   'overview',
