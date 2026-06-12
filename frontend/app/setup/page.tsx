@@ -8,12 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, Home, ArrowRight, ShieldCheck, Users } from 'lucide-react';
+import { Eye, Home, ArrowRight, ShieldCheck, Users, Pencil } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 interface Household {
   id: number;
   name: string;
+  currency: string;
   owner_email: string;
   owner_name: string;
   member_count: number;
@@ -41,6 +42,10 @@ export default function SetupPage() {
   const [detailHh, setDetailHh] = useState<Household | null>(null);
   const [detailMembers, setDetailMembers] = useState<Member[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [editHh, setEditHh] = useState<Household | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCurrency, setEditCurrency] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
 
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
@@ -101,6 +106,30 @@ export default function SetupPage() {
       setDetailMembers([]);
     }
     setDetailLoading(false);
+  };
+
+  const openEdit = (hh: Household) => {
+    setEditHh(hh);
+    setEditName(hh.name);
+    setEditCurrency('USD');
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editHh) return;
+    setEditLoading(true);
+
+    const res = await fetch(apiUrl(`/api/admin/households/${editHh.id}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': userId || '' },
+      body: JSON.stringify({ name: editName.trim(), currency: editCurrency }),
+    });
+
+    if (res.ok) {
+      setEditHh(null);
+      fetchHouseholds();
+    }
+    setEditLoading(false);
   };
 
   return (
@@ -182,10 +211,16 @@ export default function SetupPage() {
                       <TableCell className="text-xs">{hh.member_count}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{new Date(hh.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(hh)} className="h-7 text-xs gap-1">
-                          <Eye className="h-3 w-3" />
-                          View
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="outline" size="sm" onClick={() => openEdit(hh)} className="h-7 text-xs gap-1">
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleViewDetails(hh)} className="h-7 text-xs gap-1">
+                            <Eye className="h-3 w-3" />
+                            View
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -232,6 +267,30 @@ export default function SetupPage() {
               </Table>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editHh} onOpenChange={(open) => { if (!open) setEditHh(null); }}>
+        <DialogContent className="border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              <Pencil className="h-4 w-4 text-primary" />
+              Edit Household
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Household name</Label>
+              <Input className="h-8 text-xs" value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Currency</Label>
+              <Input className="h-8 text-xs" value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} placeholder="USD" />
+            </div>
+            <Button type="submit" size="sm" disabled={editLoading} className="h-8 text-xs">
+              {editLoading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

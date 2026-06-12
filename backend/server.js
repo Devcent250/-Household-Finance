@@ -1377,6 +1377,31 @@ async function handleAdminHouseholds(req, res, url) {
     });
   }
 
+  if (req.method === 'PATCH') {
+    const id = idFromPath(url.pathname, '/api/admin/households');
+    if (!id) return sendJson(res, 400, { success: false, error: 'Household ID required' });
+
+    const { name, currency } = await readJson(req);
+    const updates = [];
+    const params = [];
+
+    for (const [col, val] of [['name', name], ['currency', currency]]) {
+      if (val !== undefined && val !== '') {
+        params.push(val);
+        updates.push(`${col} = $${params.length}`);
+      }
+    }
+
+    if (updates.length === 0) return sendJson(res, 400, { success: false, error: 'No changes' });
+
+    params.push(id);
+    const rows = await query(
+      `UPDATE households SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`
+    );
+    if (rows.length === 0) return sendJson(res, 404, { success: false, error: 'Household not found' });
+    return sendJson(res, 200, { success: true, data: rows[0], message: 'Household updated' });
+  }
+
   return sendJson(res, 404, { message: 'Not found' });
 }
 
@@ -1469,7 +1494,10 @@ const server = http.createServer(async (req, res) => {
       return await handleHouseholds(req, res);
     }
     // ─── Super-admin routes ───────────────────────────────────────
-    if (url.pathname === '/api/admin/households' && ['GET', 'POST'].includes(req.method)) {
+    if (url.pathname === '/api/admin/households' && ['GET', 'POST', 'PATCH'].includes(req.method)) {
+      return await handleAdminHouseholds(req, res, url);
+    }
+    if (url.pathname.match(/^\/api\/admin\/households\/\d+$/) && req.method === 'PATCH') {
       return await handleAdminHouseholds(req, res, url);
     }
     if (url.pathname.match(/^\/api\/admin\/households\/\d+\/members$/) && req.method === 'GET') {
