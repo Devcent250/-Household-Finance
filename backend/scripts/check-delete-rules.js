@@ -1,0 +1,11 @@
+const { Pool } = require('pg');
+const p = new Pool({ connectionString: process.env.DATABASE_URL });
+p.query(`
+  SELECT tc.table_name, kcu.column_name, ccu.table_name AS foreign_table, rc.delete_rule
+  FROM information_schema.table_constraints tc
+  JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+  JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema
+  JOIN information_schema.referential_constraints rc ON rc.constraint_name = tc.constraint_name AND rc.constraint_schema = tc.table_schema
+  WHERE tc.constraint_type = 'FOREIGN KEY'
+  ORDER BY tc.table_name
+`).then(r => { console.table(r.rows); p.end(); }).catch(e => { console.error(e.message); p.end(); });
