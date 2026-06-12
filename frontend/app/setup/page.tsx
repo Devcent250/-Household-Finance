@@ -135,11 +135,16 @@ export default function SetupPage() {
   const handleDelete = async (hh: Household) => {
     if (!confirm(`Delete "${hh.name}"? This cannot be undone.`)) return;
 
-    await fetch(apiUrl(`/api/admin/households/${hh.id}`), {
+    const res = await fetch(apiUrl(`/api/admin/households/${hh.id}`), {
       method: 'DELETE',
       headers: { 'x-user-id': userId || '' },
     });
-    fetchHouseholds();
+    if (res.ok) {
+      fetchHouseholds();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Failed to delete household');
+    }
   };
 
   return (
