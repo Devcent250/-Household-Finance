@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,11 @@ import { apiUrl } from '@/lib/api';
 export default function LandingPage() {
   const router = useRouter();
   const errorTimeoutRef = useRef<number | null>(null);
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState(2026);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
   const [isLogin, setIsLogin] = useState(true);
   const [authError, setAuthError] = useState<{ title: string; description: string } | null>(null);
   const [authSuccess, setAuthSuccess] = useState<{ title: string; description: string } | null>(null);
