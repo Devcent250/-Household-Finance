@@ -224,6 +224,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               value={profile.full_name}
               onChange={(e) => setProfile((p) => ({ ...p, full_name: e.target.value }))}
               placeholder="Your full name"
+              autoComplete="name"
             />
           </div>
           <div className="space-y-1">
@@ -234,6 +235,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               value={profile.email}
               onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
               placeholder="you@example.com"
+              autoComplete="email"
             />
           </div>
           <div className="space-y-1">
@@ -267,6 +269,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               value={profile.password}
               onChange={(e) => setProfile((p) => ({ ...p, password: e.target.value }))}
               placeholder="Leave blank to keep current password"
+              autoComplete="new-password"
             />
           </div>
         </div>
@@ -345,6 +348,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               value={smtp.user}
               onChange={(e) => setSmtp((s) => ({ ...s, user: e.target.value }))}
               placeholder="you@gmail.com"
+              autoComplete="email"
             />
           </div>
           <div className="space-y-1">
@@ -357,6 +361,7 @@ export default function SettingsPanel({ userId }: SettingsPanelProps) {
               value={smtp.password}
               onChange={(e) => setSmtp((s) => ({ ...s, password: e.target.value }))}
               placeholder="••••••••••••••••"
+              autoComplete="off"
             />
           </div>
         </div>

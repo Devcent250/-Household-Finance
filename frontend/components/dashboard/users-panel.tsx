@@ -250,15 +250,15 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
             <div className="grid gap-4 bg-[color-mix(in_oklch,var(--primary)_5%,transparent)] px-6 py-5">
               <div className="space-y-2">
                 <Label htmlFor="mem-name">Full name</Label>
-                <Input id="mem-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="h-11" />
+                <Input id="mem-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="h-11" autoComplete="name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mem-email">Email</Label>
-                <Input id="mem-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@example.com" className="h-11" />
+                <Input id="mem-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@example.com" className="h-11" autoComplete="email" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mem-password">Password</Label>
-                <Input id="mem-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 characters" className="h-11" />
+                <Input id="mem-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 characters" className="h-11" autoComplete="new-password" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mem-role">Role</Label>
@@ -299,11 +299,11 @@ export default function UsersPanel({ userId }: UsersPanelProps) {
             <div className="grid gap-4 bg-[color-mix(in_oklch,var(--primary)_5%,transparent)] px-6 py-5">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Full name</Label>
-                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Jane Doe" className="h-11" />
+                <Input id="edit-name" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Jane Doe" className="h-11" autoComplete="name" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-email">Email</Label>
-                <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="jane@example.com" className="h-11" />
+                <Input id="edit-email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="jane@example.com" className="h-11" autoComplete="email" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-role">Role</Label>

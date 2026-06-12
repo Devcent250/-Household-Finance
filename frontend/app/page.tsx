@@ -239,6 +239,7 @@ export default function LandingPage() {
                         value={formData.name}
                         onChange={handleInputChange}
                         required={!isLogin}
+                        autoComplete="name"
                         className="h-10 border-input bg-background/70 text-sm shadow-sm focus-visible:ring-primary/25"
                       />
                     </div>
@@ -253,6 +254,7 @@ export default function LandingPage() {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
+                      autoComplete="email webauthn"
                       className="h-10 border-input bg-background/70 text-sm shadow-sm focus-visible:ring-primary/25"
                     />
                   </div>
@@ -266,6 +268,7 @@ export default function LandingPage() {
                       value={formData.password}
                       onChange={handleInputChange}
                       required
+                      autoComplete={isLogin ? 'current-password webauthn' : 'new-password'}
                       className="h-10 border-input bg-background/70 text-sm shadow-sm focus-visible:ring-primary/25"
                     />
                   </div>
