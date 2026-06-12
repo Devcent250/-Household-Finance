@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Eye, Home, ArrowRight, ShieldCheck, Users, Pencil } from 'lucide-react';
+import { Eye, Home, ArrowRight, ShieldCheck, Users, Pencil, Trash2 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 interface Household {
@@ -132,6 +132,16 @@ export default function SetupPage() {
     setEditLoading(false);
   };
 
+  const handleDelete = async (hh: Household) => {
+    if (!confirm(`Delete "${hh.name}"? This cannot be undone.`)) return;
+
+    await fetch(apiUrl(`/api/admin/households/${hh.id}`), {
+      method: 'DELETE',
+      headers: { 'x-user-id': userId || '' },
+    });
+    fetchHouseholds();
+  };
+
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -215,6 +225,10 @@ export default function SetupPage() {
                           <Button variant="outline" size="sm" onClick={() => openEdit(hh)} className="h-7 text-xs gap-1">
                             <Pencil className="h-3 w-3" />
                             Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(hh)} className="h-7 text-xs gap-1 text-destructive hover:text-destructive">
+                            <Trash2 className="h-3 w-3" />
+                            Delete
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => handleViewDetails(hh)} className="h-7 text-xs gap-1">
                             <Eye className="h-3 w-3" />

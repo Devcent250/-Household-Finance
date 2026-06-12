@@ -1402,6 +1402,26 @@ async function handleAdminHouseholds(req, res, url) {
     return sendJson(res, 200, { success: true, data: rows[0], message: 'Household updated' });
   }
 
+  if (req.method === 'DELETE') {
+    const id = idFromPath(url.pathname, '/api/admin/households');
+    if (!id) return sendJson(res, 400, { success: false, error: 'Household ID required' });
+
+    const existing = await query('SELECT id FROM households WHERE id = $1', [id]);
+    if (existing.length === 0) return sendJson(res, 404, { success: false, error: 'Household not found' });
+
+    await query('DELETE FROM household_role_permissions WHERE role_id IN (SELECT id FROM household_roles WHERE household_id = $1)', [id]);
+    await query('DELETE FROM household_roles WHERE household_id = $1', [id]);
+    await query('DELETE FROM household_members WHERE household_id = $1', [id]);
+    await query('DELETE FROM categories WHERE household_id = $1', [id]);
+    await query('DELETE FROM expenses WHERE household_id = $1', [id]);
+    await query('DELETE FROM income WHERE household_id = $1', [id]);
+    await query('DELETE FROM budgets WHERE household_id = $1', [id]);
+    await query('DELETE FROM financial_goals WHERE household_id = $1', [id]);
+    await query('DELETE FROM households WHERE id = $1', [id]);
+
+    return sendJson(res, 200, { success: true, message: 'Household deleted' });
+  }
+
   return sendJson(res, 404, { message: 'Not found' });
 }
 
@@ -1497,7 +1517,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/admin/households' && ['GET', 'POST', 'PATCH'].includes(req.method)) {
       return await handleAdminHouseholds(req, res, url);
     }
-    if (url.pathname.match(/^\/api\/admin\/households\/\d+$/) && req.method === 'PATCH') {
+    if (url.pathname.match(/^\/api\/admin\/households\/\d+$/) && ['PATCH', 'DELETE'].includes(req.method)) {
       return await handleAdminHouseholds(req, res, url);
     }
     if (url.pathname.match(/^\/api\/admin\/households\/\d+\/members$/) && req.method === 'GET') {
